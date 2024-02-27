@@ -7,6 +7,7 @@
 
 typedef unsigned char BYTE;
 
+
 // https://stackoverflow.com/questions/35926722/what-is-the-format-specifier-for-binary-in-c
 void print_byte(BYTE byte)
 {
@@ -117,14 +118,14 @@ const BYTE nth_byte(unsigned short value, unsigned char n) {
     return (value >> shift_by) & 0b11111111;
 }
 
-void disassemble_0_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
+void disassemble_1_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
     enum Instruction instr = (enum Instruction) byte & OPCODE;
     strcpy_s(opcode, sizeof(opcode) + 1, instruction_to_str(instr));
     *d = byte & D;
     *w = byte & W;
 }
 
-void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, bool* w) {
+void disassemble_0_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, bool* w) {
     int reg, rm;
     reg = (byte & REG) >> 3;
     rm = byte & RM;
@@ -147,48 +148,48 @@ void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, 
 const char* disassemble(unsigned short binary_instruction) {
     //assumed to be 2 bytes long
     //
-    char opcode[9];
-    char fst_reg[3];
-    char snd_reg[3];
+    DisassembledInstruction dis_instr;
     bool d = false;
     bool w = false;
 
-    disassemble_0_byte(nth_byte(binary_instruction, 0), opcode, &d, &w);
-    //disassemble_1_byte(nth_byte(binary_instruction, 1), fst_reg, snd_reg, &d, &w);
+    disassemble_1_byte(nth_byte(binary_instruction, 1), dis_instr.opcode, &d, &w);
+    disassemble_0_byte(nth_byte(binary_instruction, 0), dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
     
 
-    return "mov cx, bx";
+    return disassamled_instruction_to_str(&dis_instr);
 }
 
 // TESTS //
+short int TEST_INSTR = 0b1000100111001011; // mov cx, bx
 
 void test_disassemble() {
-    bool are_different = strcmp(disassemble(0x89D9), "mov cx, bx");
+    const char* dis_instr = disassemble(TEST_INSTR);
+    bool are_different = strcmp(dis_instr, "mov cx, bx");
     assert(!are_different);
 }
 
-void test_disassemble_0_byte() {
-    BYTE byte = 0b10001010;
+void test_disassemble_1_byte() {
+    BYTE byte = 0b10001001;
 
     DisassembledInstruction dis_instr;
     bool d;
     bool w;
 
-    disassemble_0_byte(byte, dis_instr.opcode, &d, &w);
+    disassemble_1_byte(byte, dis_instr.opcode, &d, &w);
 
     assert(!strcmp(dis_instr.opcode, "mov"));
-    assert(d);
-    assert(!w);
+    assert(!d);
+    assert(w);
 }
 
-void test_disassemble_1_byte() {
+void test_disassemble_0_byte() {
     BYTE byte = 0b00101011;
 
     DisassembledInstruction dis_instr;
     bool d = false;
     bool w = false;
 
-    disassemble_1_byte(byte, dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
+    disassemble_0_byte(byte, dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
 
     assert(!strcmp(dis_instr.fst_reg, "ch"));
     assert(!strcmp(dis_instr.snd_reg, "bl"));
@@ -200,15 +201,15 @@ void test_disassembled_instruction_to_str() {
 }
 
 void test_nth_byte() {
-    assert(0b11001100 == nth_byte(0b1100110011010101, 1));
-    assert(0b11010101 == nth_byte(0b1100110011010101, 0));
+    assert(0b10001001 == nth_byte(TEST_INSTR, 1));
+    assert(0b11001011 == nth_byte(TEST_INSTR, 0));
 }
 
 int main(int argc, char *argv[]) {
-    test_disassemble();
     test_nth_byte();
     test_disassembled_instruction_to_str();
     test_disassemble_0_byte();
     test_disassemble_1_byte();
+    test_disassemble();
     return 0;
 }
