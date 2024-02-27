@@ -27,6 +27,20 @@ enum Reg8Bits {
     HB = 7,
 };
 
+const char* Reg8Bits_to_str(enum Reg8Bits reg) {
+    switch (reg) {
+        case AL: return "al";
+        case CL: return "cl";
+        case DL: return "dl";
+        case BL: return "bl";
+        case AH: return "ah";
+        case CH: return "ch";
+        case DF: return "df";
+        case HB: return "hb";
+    }
+    return "NO";
+}
+
 enum Reg16Bits {
     AX = 0,
     CX = 1,
@@ -37,6 +51,20 @@ enum Reg16Bits {
     SI = 6,
     DI = 7,
 };
+
+const char* Reg16Bits_to_str(enum Reg16Bits reg) {
+    switch (reg) {
+        case AX: return "ax";
+        case CX: return "cx";
+        case DX: return "dx";
+        case BX: return "bx";
+        case SP: return "ap";
+        case BP: return "bp";
+        case SI: return "si";
+        case DI: return "di";
+    }
+    return "NO";
+}
 
 enum Byte1Mask {
     OPCODE = 0b11111100,
@@ -97,9 +125,23 @@ void disassemble_0_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
 }
 
 void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, bool* w) {
-    //char* opcode = byte_to_opcode(byte & OPCODE);
-    //*d = byte & D;
-    //*w = byte & w;
+    int reg, rm;
+    reg = (byte & REG) >> 3;
+    rm = byte & RM;
+
+    const char* fst;
+    const char* snd;
+
+    if (*w) {
+        fst = Reg16Bits_to_str(reg);
+        snd = Reg16Bits_to_str(rm);
+    } else {
+        fst = Reg8Bits_to_str(reg);
+        snd = Reg8Bits_to_str(rm);
+    }
+
+    strcpy_s(fst_reg, sizeof(fst_reg), fst);
+    strcpy_s(snd_reg, sizeof(snd_reg), snd);
 }
 
 const char* disassemble(unsigned short binary_instruction) {
@@ -139,6 +181,19 @@ void test_disassemble_0_byte() {
     assert(!w);
 }
 
+void test_disassemble_1_byte() {
+    BYTE byte = 0b00101011;
+
+    DisassembledInstruction dis_instr;
+    bool d = false;
+    bool w = false;
+
+    disassemble_1_byte(byte, dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
+
+    assert(!strcmp(dis_instr.fst_reg, "ch"));
+    assert(!strcmp(dis_instr.snd_reg, "bl"));
+}
+
 void test_disassembled_instruction_to_str() {
     const char* dis_i = disassamled_instruction_to_str(construct_instruction("mov", "cx", "bx"));
     assert(!strcmp(dis_i, "mov cx, bx"));
@@ -154,5 +209,6 @@ int main(int argc, char *argv[]) {
     test_nth_byte();
     test_disassembled_instruction_to_str();
     test_disassemble_0_byte();
+    test_disassemble_1_byte();
     return 0;
 }
