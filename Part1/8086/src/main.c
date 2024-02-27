@@ -44,6 +44,23 @@ enum Byte1Mask {
     W      = 0b00000001,
 };
 
+enum Byte2Mask {
+    MOD = 0b11000000,
+    REG = 0b00111000,
+    RM  = 0b00000111,
+};
+
+enum Instruction {
+    MOV = 0b10001000,
+};
+
+const char* instruction_to_str(enum Instruction instr) {
+    switch (instr) {
+        case MOV: return "mov";
+    }
+    return "NON";
+}
+
 typedef struct instruction {
     char opcode[9];
     char fst_reg[3];
@@ -67,32 +84,64 @@ const char* disassamled_instruction_to_str(const DisassembledInstruction* instru
     return instruction_str;
 }
 
-void test_disassembled_instruction_to_str() {
-    const char* dis_i = disassamled_instruction_to_str(construct_instruction("mov", "cx", "bx"));
-    assert(!strcmp(dis_i, "mov cx, bx"));
-}
-
-const char* disassemble_1_byte(const BYTE byte, bool* d, bool* w) {
-    //char* opcode = byte_to_opcode(byte & OPCODE);
-    //*d = byte & D;
-    //*w = byte & w;
-
-    return "lol";
-}
-
-enum Byte2Mask {
-    MOD = 0b11000000,
-    REG = 0b00111000,
-    RM  = 0b00000111,
-};
-
-enum Instructions {
-    MOV = 0b100010,
-};
-
 const BYTE nth_byte(unsigned short value, unsigned char n) {
     unsigned int shift_by = n * 8;
     return (value >> shift_by) & 0b11111111;
+}
+
+void disassemble_0_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
+    enum Instruction instr = (enum Instruction) byte & OPCODE;
+    strcpy_s(opcode, sizeof(opcode) + 1, instruction_to_str(instr));
+    *d = byte & D;
+    *w = byte & W;
+}
+
+void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, bool* w) {
+    //char* opcode = byte_to_opcode(byte & OPCODE);
+    //*d = byte & D;
+    //*w = byte & w;
+}
+
+const char* disassemble(unsigned short binary_instruction) {
+    //assumed to be 2 bytes long
+    //
+    char opcode[9];
+    char fst_reg[3];
+    char snd_reg[3];
+    bool d = false;
+    bool w = false;
+
+    disassemble_0_byte(nth_byte(binary_instruction, 0), opcode, &d, &w);
+    //disassemble_1_byte(nth_byte(binary_instruction, 1), fst_reg, snd_reg, &d, &w);
+    
+
+    return "mov cx, bx";
+}
+
+// TESTS //
+
+void test_disassemble() {
+    bool are_different = strcmp(disassemble(0x89D9), "mov cx, bx");
+    assert(!are_different);
+}
+
+void test_disassemble_0_byte() {
+    BYTE byte = 0b10001010;
+
+    DisassembledInstruction dis_instr;
+    bool d;
+    bool w;
+
+    disassemble_0_byte(byte, dis_instr.opcode, &d, &w);
+
+    assert(!strcmp(dis_instr.opcode, "mov"));
+    assert(d);
+    assert(!w);
+}
+
+void test_disassembled_instruction_to_str() {
+    const char* dis_i = disassamled_instruction_to_str(construct_instruction("mov", "cx", "bx"));
+    assert(!strcmp(dis_i, "mov cx, bx"));
 }
 
 void test_nth_byte() {
@@ -100,15 +149,10 @@ void test_nth_byte() {
     assert(0b11010101 == nth_byte(0b1100110011010101, 0));
 }
 
-
-const char* disassemble(unsigned short binary_instruction) {
-    return "mov cx, bx";
-}
-
 int main(int argc, char *argv[]) {
-    bool are_different = strcmp(disassemble(0x89D9), "mov cx, bx");
-    assert(!are_different);
+    test_disassemble();
     test_nth_byte();
     test_disassembled_instruction_to_str();
+    test_disassemble_0_byte();
     return 0;
 }
