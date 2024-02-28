@@ -91,12 +91,12 @@ const char* instruction_to_str(enum Instruction instr) {
 }
 
 typedef struct instruction {
-    char opcode[9];
+    char opcode[4];
     char dst_reg[3];
     char src_reg[3];
 } DisassembledInstruction;
 
-const DisassembledInstruction* construct_instruction(const char opcode[9], const char dst_reg[3], const char src_reg[3]) {
+const DisassembledInstruction* construct_instruction(const char opcode[4], const char dst_reg[3], const char src_reg[3]) {
      DisassembledInstruction* in =(DisassembledInstruction*) malloc(sizeof(DisassembledInstruction));
 
     strcpy_s(in->opcode, sizeof(in->opcode) + 1, opcode);
