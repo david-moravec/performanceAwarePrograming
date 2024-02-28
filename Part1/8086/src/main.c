@@ -164,7 +164,7 @@ const char* disassemble_binary_file(FILE* f) {
     BYTE buffer[8];
 
     while (true) {
-        int succes = fread(&buffer, sizeof(BYTE), 4, f);
+        int succes = fread(&buffer, sizeof(BYTE), 2, f);
 
         if (!succes) {
             break;
