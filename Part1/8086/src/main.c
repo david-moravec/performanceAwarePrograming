@@ -19,9 +19,7 @@ void disassemble_binary_file(FILE* f) {
     }
 }
 
-// TESTS //
 int main(int argc, char *argv[]) {
-    test_nth_byte();
     test_disassembled_instruction_to_str();
     test_disassemble_0_byte();
     test_disassemble_1_byte();

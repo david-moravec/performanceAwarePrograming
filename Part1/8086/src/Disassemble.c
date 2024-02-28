@@ -18,23 +18,11 @@ void print_byte(BYTE byte)
     }
 }
 
-enum Byte0Mask {
-    OPCODE = 0b11111100,
-    D      = 0b00000010,
-    W      = 0b00000001,
-};
-
-enum Byte1Mask {
-    MOD = 0b11000000,
-    REG = 0b00111000,
-    RM  = 0b00000111,
-};
-
-enum Instruction {
+enum Opcode {
     MOV = 0b10001000,
 };
 
-static const char* instruction_to_str(enum Instruction instr) {
+static const char* opcode_to_str(enum Opcode instr) {
     switch (instr) {
         case MOV: return "mov";
     }
@@ -74,19 +62,27 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
     return instruction_str;
 }
 
-static const BYTE nth_byte(unsigned long long value, unsigned char n) {
-    unsigned int shift_by = n * 8;
-    return (value >> shift_by) & 0b11111111;
-}
 
 static void disassemble_0_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
-    enum Instruction instr = (enum Instruction) byte & OPCODE;
-    strcpy_s(opcode, sizeof(opcode) + 1, instruction_to_str(instr));
+    enum Byte0Mask {
+        OPCODE = 0b11111100,
+        D      = 0b00000010,
+        W      = 0b00000001,
+    };
+
+    enum Opcode instr = (enum Opcode) byte & OPCODE;
+    strcpy_s(opcode, sizeof(opcode) + 1, opcode_to_str(instr));
     *d = byte & D;
     *w = byte & W;
 }
 
 static void disassemble_1_byte(const BYTE byte, char* dst_reg, char* src_reg, bool* d, bool* w) {
+    enum Byte1Mask {
+        MOD = 0b11000000,
+        REG = 0b00111000,
+        RM  = 0b00000111,
+    };
+
     int reg, rm;
     reg = (byte & REG) >> 3;
     rm = byte & RM;
@@ -159,10 +155,3 @@ void test_disassembled_instruction_to_str() {
     const char* dis_i = disassambled_instruction_to_str(construct_instruction("mov", "cx", "bx"));
     assert(!strcmp(dis_i, "mov cx, bx"));
 }
-
-void test_nth_byte() {
-    unsigned short test = 0b1000100111001011;
-    assert(0b10001001 == nth_byte(test, 1));
-    assert(0b11001011 == nth_byte(test, 0));
-}
-
