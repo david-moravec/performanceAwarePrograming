@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <limits.h>
 
+#include "RegEnum.h"
+
 typedef unsigned char BYTE;
 typedef unsigned char BINARY_INSTRUCTION[8];
 
@@ -17,63 +19,13 @@ void print_byte(BYTE byte)
     }
 }
 
-enum Reg8Bits {
-    AL = 0,
-    CL = 1,
-    DL = 2,
-    BL = 3,
-    AH = 4,
-    CH = 5,
-    DF = 6,
-    HB = 7,
-};
-
-const char* Reg8Bits_to_str(enum Reg8Bits reg) {
-    switch (reg) {
-        case AL: return "al";
-        case CL: return "cl";
-        case DL: return "dl";
-        case BL: return "bl";
-        case AH: return "ah";
-        case CH: return "ch";
-        case DF: return "df";
-        case HB: return "hb";
-    }
-    return "NO";
-}
-
-enum Reg16Bits {
-    AX = 0,
-    CX = 1,
-    DX = 2,
-    BX = 3,
-    SP = 4,
-    BP = 5,
-    SI = 6,
-    DI = 7,
-};
-
-const char* Reg16Bits_to_str(enum Reg16Bits reg) {
-    switch (reg) {
-        case AX: return "ax";
-        case CX: return "cx";
-        case DX: return "dx";
-        case BX: return "bx";
-        case SP: return "sp";
-        case BP: return "bp";
-        case SI: return "si";
-        case DI: return "di";
-    }
-    return "NO";
-}
-
-enum Byte5Mask {
+enum Byte0Mask {
     OPCODE = 0b11111100,
     D      = 0b00000010,
     W      = 0b00000001,
 };
 
-enum Byte4Mask {
+enum Byte1Mask {
     MOD = 0b11000000,
     REG = 0b00111000,
     RM  = 0b00000111,
