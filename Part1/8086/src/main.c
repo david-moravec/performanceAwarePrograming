@@ -59,7 +59,7 @@ const char* Reg16Bits_to_str(enum Reg16Bits reg) {
         case CX: return "cx";
         case DX: return "dx";
         case BX: return "bx";
-        case SP: return "ap";
+        case SP: return "sp";
         case BP: return "bp";
         case SI: return "si";
         case DI: return "di";
@@ -134,11 +134,11 @@ void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, 
     const char* snd;
 
     if (*w) {
-        fst = Reg16Bits_to_str(reg);
-        snd = Reg16Bits_to_str(rm);
+        fst = Reg16Bits_to_str(rm);
+        snd = Reg16Bits_to_str(reg);
     } else {
-        fst = Reg8Bits_to_str(reg);
-        snd = Reg8Bits_to_str(rm);
+        fst = Reg8Bits_to_str(rm);
+        snd = Reg8Bits_to_str(reg);
     }
 
     strcpy_s(fst_reg, sizeof(fst_reg), fst);
@@ -180,7 +180,7 @@ const char* disassemble_binary_file(FILE* f) {
 }
 
 // TESTS //
-BINARY_INSTRUCTION test_instr = {0b10001001, 0b11001011, 0b000000000, 0b000000000, 0b00000000, 0b00000000};
+BINARY_INSTRUCTION test_instr = {0b10001001, 0b11011001, 0b000000000, 0b000000000, 0b00000000, 0b00000000};
 
 void test_disassemble_instruction() {
     const char* dis_instr = disassemble_instruction(test_instr);
@@ -242,6 +242,7 @@ int main(int argc, char *argv[]) {
     f = fopen(argv[1], "rb");
 
     if (f!=NULL) {
+        printf("bits 16\n\n\n\n");
         disassemble_binary_file(f);
     } else {
         printf("Cannot read %s", argv[1]);
