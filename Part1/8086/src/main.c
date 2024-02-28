@@ -6,15 +6,7 @@
 #include <limits.h>
 
 typedef unsigned char BYTE;
-typedef unsigned long long BINARY_INSTRUCTION;
-
-void print_binary_instruction(BINARY_INSTRUCTION instruction) {
-    BINARY_INSTRUCTION i;
-
-    for (i = 1 << sizeof(BINARY_INSTRUCTION); i > 0; i = i / 2 ) {
-        (instruction & i) ? printf("1") : printf("0");
-    }
-}
+typedef unsigned char BINARY_INSTRUCTION[8];
 
 // https://stackoverflow.com/questions/35926722/what-is-the-format-specifier-for-binary-in-c
 void print_byte(BYTE byte)
@@ -121,19 +113,19 @@ const char* disassamled_instruction_to_str(const DisassembledInstruction* instru
     return instruction_str;
 }
 
-const BYTE nth_byte(BINARY_INSTRUCTION value, unsigned char n) {
+const BYTE nth_byte(unsigned long long value, unsigned char n) {
     unsigned int shift_by = n * 8;
     return (value >> shift_by) & 0b11111111;
 }
 
-void disassemble_5_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
+void disassemble_0_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
     enum Instruction instr = (enum Instruction) byte & OPCODE;
     strcpy_s(opcode, sizeof(opcode) + 1, instruction_to_str(instr));
     *d = byte & D;
     *w = byte & W;
 }
 
-void disassemble_4_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, bool* w) {
+void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, bool* w) {
     int reg, rm;
     reg = (byte & REG) >> 3;
     rm = byte & RM;
@@ -153,15 +145,15 @@ void disassemble_4_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, 
     strcpy_s(snd_reg, sizeof(snd_reg), snd);
 }
 
-const char* disassemble_instruction(const BYTE binary_instruction[8]) {
+const char* disassemble_instruction(const BINARY_INSTRUCTION binary_instruction) {
     DisassembledInstruction dis_instr;
     bool d = false;
     bool w = false;
 
     //print_binary_instruction(binary_instruction);
 
-    disassemble_5_byte(binary_instruction[0], dis_instr.opcode, &d, &w);
-    disassemble_4_byte(binary_instruction[1], dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
+    disassemble_0_byte(binary_instruction[0], dis_instr.opcode, &d, &w);
+    disassemble_1_byte(binary_instruction[1], dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
     
 
     return disassamled_instruction_to_str(&dis_instr);
@@ -188,39 +180,38 @@ const char* disassemble_binary_file(FILE* f) {
 }
 
 // TESTS //
-BINARY_INSTRUCTION test_instr =  0b100010011100101100000000000000000000000000000000;// mov cx, bx
-unsigned char test_instr_vec[] = {0b10001001, 0b11001011, 0b000000000, 0b000000000};
+BINARY_INSTRUCTION test_instr = {0b10001001, 0b11001011, 0b000000000, 0b000000000, 0b00000000, 0b00000000};
 
 void test_disassemble_instruction() {
-    const char* dis_instr = disassemble_instruction(test_instr_vec);
+    const char* dis_instr = disassemble_instruction(test_instr);
     bool are_different = strcmp(dis_instr, "mov cx, bx");
     assert(!are_different);
 }
 
-void test_disassemble_1_byte() {
-    BYTE byte = 0b10001001;
+void test_disassemble_0_byte() {
+    BYTE byte = test_instr[0];
 
     DisassembledInstruction dis_instr;
     bool d;
     bool w;
 
-    disassemble_5_byte(byte, dis_instr.opcode, &d, &w);
+    disassemble_0_byte(byte, dis_instr.opcode, &d, &w);
 
     assert(!strcmp(dis_instr.opcode, "mov"));
     assert(!d);
     assert(w);
 }
 
-void test_disassemble_0_byte() {
-    BYTE byte = 0b00101011;
+void test_disassemble_1_byte() {
+    BYTE byte = test_instr[1];
 
     DisassembledInstruction dis_instr;
     bool d = false;
     bool w = false;
 
-    disassemble_4_byte(byte, dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
+    disassemble_1_byte(byte, dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
 
-    assert(!strcmp(dis_instr.fst_reg, "ch"));
+    assert(!strcmp(dis_instr.fst_reg, "cl"));
     assert(!strcmp(dis_instr.snd_reg, "bl"));
 }
 
@@ -230,8 +221,9 @@ void test_disassembled_instruction_to_str() {
 }
 
 void test_nth_byte() {
-    assert(0b10001001 == nth_byte(test_instr, 5));
-    assert(0b11001011 == nth_byte(test_instr, 4));
+    unsigned short test = 0b1000100111001011;
+    assert(0b10001001 == nth_byte(test, 1));
+    assert(0b11001011 == nth_byte(test, 0));
 }
 
 int main(int argc, char *argv[]) {
