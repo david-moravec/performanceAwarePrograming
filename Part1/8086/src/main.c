@@ -150,17 +150,14 @@ const char* disassemble_instruction(const BINARY_INSTRUCTION binary_instruction)
     bool d = false;
     bool w = false;
 
-    //print_binary_instruction(binary_instruction);
-
     disassemble_0_byte(binary_instruction[0], dis_instr.opcode, &d, &w);
     disassemble_1_byte(binary_instruction[1], dis_instr.dst_reg, dis_instr.src_reg, &d, &w);
-    
 
     return disassamled_instruction_to_str(&dis_instr);
 }
 
 
-const char* disassemble_binary_file(FILE* f) {
+void disassemble_binary_file(FILE* f) {
     BYTE buffer[8];
 
     while (true) {
@@ -170,13 +167,8 @@ const char* disassemble_binary_file(FILE* f) {
             break;
         }
 
-
         printf("%s\n", disassemble_instruction(buffer));
     }
-
-
-
-    return "lol";
 }
 
 // TESTS //
