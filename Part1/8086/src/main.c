@@ -92,16 +92,16 @@ const char* instruction_to_str(enum Instruction instr) {
 
 typedef struct instruction {
     char opcode[9];
-    char fst_reg[3];
-    char snd_reg[3];
+    char dst_reg[3];
+    char src_reg[3];
 } DisassembledInstruction;
 
-const DisassembledInstruction* construct_instruction(const char opcode[9], const char fst_reg[3], const char snd_reg[3]) {
+const DisassembledInstruction* construct_instruction(const char opcode[9], const char dst_reg[3], const char src_reg[3]) {
      DisassembledInstruction* in =(DisassembledInstruction*) malloc(sizeof(DisassembledInstruction));
 
     strcpy_s(in->opcode, sizeof(in->opcode) + 1, opcode);
-    strcpy_s(in->fst_reg, sizeof(in->fst_reg) + 1, fst_reg);
-    strcpy_s(in->snd_reg, sizeof(in->snd_reg) + 1, snd_reg);
+    strcpy_s(in->dst_reg, sizeof(in->dst_reg) + 1, dst_reg);
+    strcpy_s(in->src_reg, sizeof(in->src_reg) + 1, src_reg);
 
     return in;
 }
@@ -109,7 +109,7 @@ const DisassembledInstruction* construct_instruction(const char opcode[9], const
 const char* disassamled_instruction_to_str(const DisassembledInstruction* instruction) {
     char* instruction_str;
     instruction_str = (char *)malloc(50);
-    snprintf(instruction_str, 50, "%s %s, %s", instruction->opcode, instruction->fst_reg, instruction->snd_reg);
+    snprintf(instruction_str, 50, "%s %s, %s", instruction->opcode, instruction->dst_reg, instruction->src_reg);
     return instruction_str;
 }
 
@@ -125,7 +125,7 @@ void disassemble_0_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
     *w = byte & W;
 }
 
-void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, bool* w) {
+void disassemble_1_byte(const BYTE byte, char* dst_reg, char* src_reg, bool* d, bool* w) {
     int reg, rm;
     reg = (byte & REG) >> 3;
     rm = byte & RM;
@@ -141,8 +141,8 @@ void disassemble_1_byte(const BYTE byte, char* fst_reg, char* snd_reg, bool* d, 
         snd = Reg8Bits_to_str(reg);
     }
 
-    strcpy_s(fst_reg, sizeof(fst_reg), fst);
-    strcpy_s(snd_reg, sizeof(snd_reg), snd);
+    strcpy_s(dst_reg, sizeof(dst_reg), fst);
+    strcpy_s(src_reg, sizeof(src_reg), snd);
 }
 
 const char* disassemble_instruction(const BINARY_INSTRUCTION binary_instruction) {
@@ -153,7 +153,7 @@ const char* disassemble_instruction(const BINARY_INSTRUCTION binary_instruction)
     //print_binary_instruction(binary_instruction);
 
     disassemble_0_byte(binary_instruction[0], dis_instr.opcode, &d, &w);
-    disassemble_1_byte(binary_instruction[1], dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
+    disassemble_1_byte(binary_instruction[1], dis_instr.dst_reg, dis_instr.src_reg, &d, &w);
     
 
     return disassamled_instruction_to_str(&dis_instr);
@@ -209,10 +209,10 @@ void test_disassemble_1_byte() {
     bool d = false;
     bool w = false;
 
-    disassemble_1_byte(byte, dis_instr.fst_reg, dis_instr.snd_reg, &d, &w);
+    disassemble_1_byte(byte, dis_instr.dst_reg, dis_instr.src_reg, &d, &w);
 
-    assert(!strcmp(dis_instr.fst_reg, "cl"));
-    assert(!strcmp(dis_instr.snd_reg, "bl"));
+    assert(!strcmp(dis_instr.dst_reg, "cl"));
+    assert(!strcmp(dis_instr.src_reg, "bl"));
 }
 
 void test_disassembled_instruction_to_str() {
