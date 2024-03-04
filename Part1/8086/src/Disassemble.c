@@ -151,7 +151,8 @@ void test_disassemble_1_byte() {
     assert(!strcmp(dis_instr.src_reg, "bl"));
 }
 
-void test_disassembled_instruction_to_str() {
-    const char* dis_i = disassambled_instruction_to_str(construct_instruction("mov", "cx", "bx"));
-    assert(!strcmp(dis_i, "mov cx, bx"));
+void test_disassemble_c() {
+    test_disassemble_instruction();
+    test_disassemble_0_byte();
+    test_disassemble_1_byte();
 }

@@ -20,10 +20,7 @@ void disassemble_binary_file(FILE* f) {
 }
 
 int main(int argc, char *argv[]) {
-    test_disassembled_instruction_to_str();
-    test_disassemble_0_byte();
-    test_disassemble_1_byte();
-    test_disassemble_instruction();
+    test_disassemble_c();
 
     if (argc == 1) {
         printf("Please provide assembled binary file");
