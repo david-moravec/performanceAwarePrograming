@@ -5,20 +5,6 @@
 
 #include "Disassemble.h"
 
-void disassemble_binary_file(FILE* f) {
-    BYTE buffer[8];
-
-    while (true) {
-        int succes = fread(&buffer, sizeof(BYTE), 2, f);
-
-        if (!succes) {
-            break;
-        }
-
-        printf("%s\n", disassemble_instruction(buffer));
-    }
-}
-
 int main(int argc, char *argv[]) {
     test_disassemble_c();
 
