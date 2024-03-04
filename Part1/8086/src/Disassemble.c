@@ -30,76 +30,73 @@ static const char* opcode_to_str(enum Opcode instr) {
 }
 
 typedef struct instruction {
-    char opcode[4];
-    char dst_reg[3];
-    char src_reg[3];
+    BYTE opcode;
+    BYTE mod;
+    BYTE reg;
+    BYTE rm;
+
+    BYTE disp_lo;
+    BYTE disp_hi;
+    BYTE data_lo;
+    BYTE data_hi;
+
+    bool s;
+    bool w;
+    bool d;
+    bool v;
+    bool z;
+
 } DisassembledInstruction;
-
-static const DisassembledInstruction* construct_instruction(
-    const char opcode[4],
-    const char dst_reg[3],
-    const char src_reg[3]
-) {
-    DisassembledInstruction* in =(DisassembledInstruction*) malloc(sizeof(DisassembledInstruction));
-
-    strcpy_s(in->opcode, sizeof(in->opcode) + 1, opcode);
-    strcpy_s(in->dst_reg, sizeof(in->dst_reg) + 1, dst_reg);
-    strcpy_s(in->src_reg, sizeof(in->src_reg) + 1, src_reg);
-
-    return in;
-}
 
 static const char* disassambled_instruction_to_str(const DisassembledInstruction* instruction) {
     char* instruction_str;
     instruction_str = (char *)malloc(50);
+
+    const char* opcode = opcode_to_str(instruction->opcode);
+    const char* source;
+    const char* destination;
+
+    if (instruction->d) {
+        destination = reg_to_str(instruction->reg, instruction->w);
+        source = reg_to_str(instruction->rm, instruction->w);
+    } else {
+        destination = reg_to_str(instruction->rm, instruction->w);
+        source = reg_to_str(instruction->reg, instruction->w);
+
+    }
+
     snprintf(instruction_str, 50,
              "%s %s, %s",
-             instruction->opcode,
-             instruction->dst_reg,
-             instruction->src_reg
+             opcode,
+             destination,
+             source
              );
 
     return instruction_str;
 }
 
 
-static void disassemble_0_byte(const BYTE byte, char* opcode, bool* d, bool* w) {
+static void disassemble_0_byte(const BYTE byte, DisassembledInstruction* dis_instr) {
     enum Byte0Mask {
         OPCODE = 0b11111100,
         D      = 0b00000010,
         W      = 0b00000001,
     };
 
-    enum Opcode instr = (enum Opcode) byte & OPCODE;
-    strcpy_s(opcode, sizeof(opcode) + 1, opcode_to_str(instr));
-    *d = byte & D;
-    *w = byte & W;
+    dis_instr->opcode = (enum Opcode) byte & OPCODE;
+    dis_instr->d = byte & D;
+    dis_instr->w = byte & W;
 }
 
-static void disassemble_1_byte(const BYTE byte, char* dst_reg, char* src_reg, bool* d, bool* w) {
+static void disassemble_1_byte(const BYTE byte, DisassembledInstruction* dis_instr) {
     enum Byte1Mask {
         MOD = 0b11000000,
         REG = 0b00111000,
         RM  = 0b00000111,
     };
 
-    int reg, rm;
-    reg = (byte & REG) >> 3;
-    rm = byte & RM;
-
-    const char* fst;
-    const char* snd;
-
-    if (*w) {
-        fst = Reg16Bits_to_str(rm);
-        snd = Reg16Bits_to_str(reg);
-    } else {
-        fst = Reg8Bits_to_str(rm);
-        snd = Reg8Bits_to_str(reg);
-    }
-
-    strcpy_s(dst_reg, sizeof(dst_reg), fst);
-    strcpy_s(src_reg, sizeof(src_reg), snd);
+    dis_instr->reg = (byte & REG) >> 3;
+    dis_instr->rm = byte & RM;
 }
 
 const char* disassemble_instruction(const BINARY_INSTRUCTION binary_instruction) {
@@ -107,8 +104,8 @@ const char* disassemble_instruction(const BINARY_INSTRUCTION binary_instruction)
     bool d = false;
     bool w = false;
 
-    disassemble_0_byte(binary_instruction[0], dis_instr.opcode, &d, &w);
-    disassemble_1_byte(binary_instruction[1], dis_instr.dst_reg, dis_instr.src_reg, &d, &w);
+    disassemble_0_byte(binary_instruction[0], &dis_instr);
+    disassemble_1_byte(binary_instruction[1], &dis_instr);
 
     return disassambled_instruction_to_str(&dis_instr);
 }
@@ -131,11 +128,11 @@ void test_disassemble_0_byte() {
     bool d;
     bool w;
 
-    disassemble_0_byte(byte, dis_instr.opcode, &d, &w);
+    disassemble_0_byte(byte, &dis_instr);
 
-    assert(!strcmp(dis_instr.opcode, "mov"));
-    assert(!d);
-    assert(w);
+    assert(dis_instr.opcode = MOV);
+    assert(!dis_instr.d);
+    assert(dis_instr.w);
 }
 
 void test_disassemble_1_byte() {
@@ -145,10 +142,10 @@ void test_disassemble_1_byte() {
     bool d = false;
     bool w = false;
 
-    disassemble_1_byte(byte, dis_instr.dst_reg, dis_instr.src_reg, &d, &w);
+    disassemble_1_byte(byte, &dis_instr);
 
-    assert(!strcmp(dis_instr.dst_reg, "cl"));
-    assert(!strcmp(dis_instr.src_reg, "bl"));
+    assert(dis_instr.reg == BL);
+    assert(dis_instr.rm == CL);
 }
 
 void test_disassemble_c() {

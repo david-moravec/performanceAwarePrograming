@@ -27,3 +27,7 @@ const char* Reg16Bits_to_str(enum Reg16Bits reg) {
     }
     return "NO";
 }
+
+const char* reg_to_str(int reg, bool w) {
+    return w ? Reg16Bits_to_str(reg) : Reg8Bits_to_str(reg);
+}

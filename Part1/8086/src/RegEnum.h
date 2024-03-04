@@ -1,6 +1,8 @@
 #ifndef BYTEMASKS_H_INCLUDED
 #define BYTEMASKS_H_INCLUDED
 
+#include <stdbool.h>
+
 enum Reg8Bits {
     AL = 0,
     CL = 1,
@@ -23,7 +25,6 @@ enum Reg16Bits {
     DI = 7,
 };
 
-const char* Reg8Bits_to_str(enum Reg8Bits reg);
-const char* Reg16Bits_to_str(enum Reg16Bits reg);
+const char* reg_to_str(int reg, bool w);
 
 #endif
