@@ -63,7 +63,7 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
     BYTE reg = instruction->reg;
     BYTE rm = instruction->rm;
     BYTE data_lo = instruction->data_lo;
-    unsigned short int data_hi = instruction->data_hi;
+    BYTE_HI data_hi = instruction->data_hi;
     bool w = instruction->w;
     bool d = instruction->d;
 
@@ -79,7 +79,6 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
             } else {
               destination = reg_to_str(rm, w);
               source = reg_to_str(reg, w);
-
             };
             break;
         case MOV_IMMEDIATE:
@@ -147,29 +146,27 @@ static void disassemble_1_byte(const BYTE byte, DisassembledInstruction* dis_ins
         return;
     }
 
+    dis_instr->mod = byte & MOD >> 6;
     dis_instr->reg = (byte & REG) >> 3;
     dis_instr->rm = byte & RM;
 }
 
-static void disassemble_2_byte(const BYTE byte, DisassembledInstruction* dis_instr) {
-    if (dis_instr->opcode == MOV_IMMEDIATE){
-        dis_instr->data_hi = byte << 8;
-        return;
-    }
+BYTE_HI high_byte(const BYTE byte) {
+        return byte << 8;
 }
 
 void disassemble_rest_of_bytes(const BINARY_INSTRUCTION binary_instruction, DisassembledInstruction* dis_instr) {
-    bool d = false;
-    bool w = false;
-
     switch ((*dis_instr).opcode) {
         case MOV:
-            disassemble_1_byte(binary_instruction[0], dis_instr);
+            dis_instr->disp_lo = binary_instruction[0];
+            if (dis_instr->mod == 2) {
+                dis_instr->disp_hi =high_byte(binary_instruction[1]);
+            }
             break;
         case MOV_IMMEDIATE:
-            disassemble_1_byte(binary_instruction[0], dis_instr);
+            dis_instr->data_lo = binary_instruction[0];
             if (dis_instr->w) {
-                disassemble_2_byte(binary_instruction[1], dis_instr);
+                dis_instr->data_hi = high_byte(binary_instruction[1]);
             }
             break;
     }
@@ -194,21 +191,33 @@ void disassemble_binary_file(FILE* f) {
 
         switch (dis_instr.opcode) {
             case MOV:
-                bytes_to_read = 1;
+                int succes = fread(&buffer, sizeof(BYTE), 1, f);
+                disassemble_1_byte(buffer[0], &dis_instr);
+
+                switch (dis_instr.mod) {
+                    case 1:
+                        bytes_to_read = 1;
+                    case 2:
+                        bytes_to_read = 2;
+                    case 3:
+                        bytes_to_read = 0;
+                }
                 break;
             case MOV_IMMEDIATE:
                 bytes_to_read = dis_instr.w ? 2 : 1;
                 break;
         }
 
-        succes = fread(&buffer, sizeof(BYTE), bytes_to_read, f);
+        if (bytes_to_read) {
+            succes = fread(&buffer, sizeof(BYTE), bytes_to_read, f);
 
-        if (!succes) {
-            printf("\nError: Unexpected EOF\n");
-            return;
+            if (!succes) {
+                printf("\nError: Unexpected EOF\n");
+                return;
+            }
+
+            disassemble_rest_of_bytes(buffer, &dis_instr);
         }
-
-        disassemble_rest_of_bytes(buffer, &dis_instr);
 
         printf("%s\n", disassambled_instruction_to_str(&dis_instr));
     }
@@ -245,7 +254,7 @@ void test_disassemble_reg_reg() {
     DisassembledInstruction dis_instr_reg_reg;
 
     disassemble_0_byte(byte_reg_reg, &dis_instr_reg_reg);
-    disassemble_rest_of_bytes((test_instr_reg_reg), &dis_instr_reg_reg);
+    disassemble_1_byte(test_instr_reg_reg[0], &dis_instr_reg_reg);
 
     const char* dis_instr_str = disassambled_instruction_to_str(&dis_instr_reg_reg);
 
