@@ -8,8 +8,8 @@ const char* Reg8Bits_to_str(enum Reg8Bits reg) {
         case BL: return "bl";
         case AH: return "ah";
         case CH: return "ch";
-        case DF: return "df";
-        case HB: return "hb";
+        case DH: return "dh";
+        case BH: return "bh";
     }
     return "NO";
 }

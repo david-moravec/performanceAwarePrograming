@@ -10,8 +10,8 @@ enum Reg8Bits {
     BL = 3,
     AH = 4,
     CH = 5,
-    DF = 6,
-    HB = 7,
+    DH = 6,
+    BH = 7,
 };
 
 enum Reg16Bits {
