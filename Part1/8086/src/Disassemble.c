@@ -7,6 +7,7 @@
 #include "RegEnum.h"
 
 typedef unsigned char BYTE;
+typedef unsigned short int BYTE_HI;
 typedef unsigned char BINARY_INSTRUCTION[8];
 
 // https://stackoverflow.com/questions/35926722/what-is-the-format-specifier-for-binary-in-c
@@ -43,9 +44,9 @@ typedef struct instruction {
     BYTE rm;
 
     BYTE disp_lo;
-    BYTE disp_hi;
+    BYTE_HI disp_hi;
     BYTE data_lo;
-    BYTE data_hi;
+    BYTE_HI data_hi;
 
     bool s;
     bool w;
@@ -62,7 +63,7 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
     BYTE reg = instruction->reg;
     BYTE rm = instruction->rm;
     BYTE data_lo = instruction->data_lo;
-    BYTE data_hi = instruction->data_hi;
+    unsigned short int data_hi = instruction->data_hi;
     bool w = instruction->w;
     bool d = instruction->d;
 
@@ -83,7 +84,7 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
             break;
         case MOV_IMMEDIATE:
             destination = reg_to_str(reg, w);
-            unsigned short int source = w ? data_lo & (data_hi << 8) : data_lo;
+            unsigned short int source = w ? data_lo + (data_hi) : data_lo;
             snprintf(instruction_str, 50,
                      "%s %s, %u",
                      opcode,
@@ -108,13 +109,13 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
 static void disassemble_0_byte(const BYTE byte, DisassembledInstruction* dis_instr) {
     enum Byte0MaskOpcode4{
         OPCODE4 = 0b11110000,
-        W4       = 0b00001000,
-        REG4     = 0b00000111,
+        W4      = 0b00001000,
+        REG4    = 0b00000111,
     };
 
     enum Byte0MaskOpcode6{
         OPCODE6 = 0b11111100,
-        D6    = 0b00000010,
+        D6      = 0b00000010,
         W6      = 0b00000001,
     };
 
@@ -152,7 +153,7 @@ static void disassemble_1_byte(const BYTE byte, DisassembledInstruction* dis_ins
 
 static void disassemble_2_byte(const BYTE byte, DisassembledInstruction* dis_instr) {
     if (dis_instr->opcode == MOV_IMMEDIATE){
-        dis_instr->data_hi = byte;
+        dis_instr->data_hi = byte << 8;
         return;
     }
 }
@@ -167,7 +168,9 @@ void disassemble_rest_of_bytes(const BINARY_INSTRUCTION binary_instruction, Disa
             break;
         case MOV_IMMEDIATE:
             disassemble_1_byte(binary_instruction[0], dis_instr);
-            disassemble_2_byte(binary_instruction[1], dis_instr);
+            if (dis_instr->w) {
+                disassemble_2_byte(binary_instruction[1], dis_instr);
+            }
             break;
     }
 }
@@ -218,7 +221,7 @@ void disassemble_binary_file(FILE* f) {
 BYTE byte_reg_reg = 0b10001001;
 BINARY_INSTRUCTION test_instr_reg_reg = {0b11011001, 0b000000000, 0b000000000, 0b00000000, 0b00000000};
 BYTE byte_reg_imm = 0b10110011;
-BINARY_INSTRUCTION test_instr_imm = {0b00000001, 0b000000000, 0b000000000, 0b00000000, 0b00000000};
+BINARY_INSTRUCTION test_instr_imm = {0b00000011, 0b000000001, 0b000000000, 0b00000000, 0b00000000};
 
 void test_disassemble_0_byte() {
     DisassembledInstruction dis_instr;
@@ -257,7 +260,14 @@ void test_disassemble_reg_immediate() {
 
     const char* dis_instr_imm_str = disassambled_instruction_to_str(&dis_instr_imm);
 
-    assert(!strcmp(dis_instr_imm_str, "mov bl, 1"));
+    assert(!strcmp(dis_instr_imm_str, "mov bl, 3"));
+
+    dis_instr_imm.w = true;
+    disassemble_rest_of_bytes((test_instr_imm), &dis_instr_imm);
+
+    dis_instr_imm_str = disassambled_instruction_to_str(&dis_instr_imm);
+
+    assert(!strcmp(dis_instr_imm_str, "mov bx, 259"));
 }
 
 void test_disassemble_1_byte() {
