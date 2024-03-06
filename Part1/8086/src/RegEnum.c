@@ -38,7 +38,7 @@ const char* effective_address(int rm) {
     switch (rm) {
         case 0b000: return "bx + si";
         case 0b001: return "bx + di";
-        case 0b010: return "bp + di";
+        case 0b010: return "bp + si";
         case 0b011: return "bp + di";
         case 0b100: return "si";
         case 0b101: return "di";
