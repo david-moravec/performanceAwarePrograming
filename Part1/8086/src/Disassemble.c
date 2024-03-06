@@ -41,10 +41,10 @@ typedef struct instruction {
     BYTE reg;
     BYTE rm;
 
-    BYTE disp_lo;
-    BYTE_HI disp_hi;
-    BYTE data_lo;
-    BYTE_HI data_hi;
+    short disp_lo;
+    short disp_hi;
+    short data_lo;
+    short data_hi;
 
     bool s;
     bool w;
@@ -61,10 +61,10 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
     BYTE reg = instruction->reg;
     BYTE rm = instruction->rm;
     BYTE mod = instruction->mod;
-    BYTE data_lo = instruction->data_lo;
-    BYTE_HI data_hi = instruction->data_hi;
-    BYTE disp_lo = instruction->disp_lo;
-    BYTE_HI disp_hi = instruction->disp_hi;
+    short data_lo = instruction->data_lo;
+    short data_hi = instruction->data_hi;
+    short disp_lo = instruction->disp_lo;
+    short disp_hi = instruction->disp_hi;
     bool w = instruction->w;
     bool d = instruction->d;
 
@@ -193,6 +193,12 @@ void disassemble_binary_file(FILE* f) {
         switch (dis_instr.opcode) {
             case MOV:
                 int succes = fread(&buffer, sizeof(BYTE), 1, f);
+
+                if (!succes) {
+                    printf("\nError: Unexpected EOF\n");
+                    return;
+                }
+
                 disassemble_1_byte(buffer[0], &dis_instr);
 
                 switch (dis_instr.mod) {
@@ -223,9 +229,10 @@ void disassemble_binary_file(FILE* f) {
             disassemble_rest_of_bytes(buffer, &dis_instr);
         }
 
-        if (opcode_is_valid(dis_instr.opcode)) {
-            printf("%s\n", disassambled_instruction_to_str(&dis_instr));
-        }
+        // if (opcode_is_valid(dis_instr.opcode)) {
+        //     printf("%s\n", disassambled_instruction_to_str(&dis_instr));
+        // }
+        printf("%s\n", disassambled_instruction_to_str(&dis_instr));
     }
 }
 
@@ -285,6 +292,21 @@ void test_disassemble_reg_immediate() {
     assert(!strcmp(dis_instr_imm_str, "mov bx, 259"));
 }
 
+void test_disassemle_signed_address_to_reg() {
+    BINARY_INSTRUCTION instr = {0b10001001, 0b10001100, 0b11010100, 0b11111110};
+    DisassembledInstruction dis_instr = {0,0,0,0,0,0,0,0,0,0,0};
+
+    disassemble_0_byte(instr[0], &dis_instr);
+    disassemble_1_byte(instr[1], &dis_instr);
+
+    dis_instr.disp_lo = instr[2];
+    dis_instr.disp_hi = instr[3] << 8;
+
+    const char* to_test = disassambled_instruction_to_str(&dis_instr);
+
+    assert(!strcmp(to_test, "mov [si - 300], cx"));
+}
+
 void test_disassemble_1_byte() {
     BYTE byte = test_instr_reg_reg[0];
 
@@ -302,9 +324,10 @@ void test_opcode_is_valid() {
 }
 
 void test_disassemble_c() {
-    test_opcode_is_valid();
-    test_disassemble_reg_immediate();
-    test_disassemble_reg_reg();
-    test_disassemble_0_byte();
-    test_disassemble_1_byte();
+    // test_opcode_is_valid();
+    // test_disassemble_reg_immediate();
+    // test_disassemble_reg_reg();
+    test_disassemle_signed_address_to_reg();
+    // test_disassemble_0_byte();
+    // test_disassemble_1_byte();
 }

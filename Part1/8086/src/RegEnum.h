@@ -28,7 +28,7 @@ enum Reg16Bits {
 };
 
 const char* reg_to_str(BYTE reg, bool w);
-const char* rm_to_str(BYTE rm, bool w, BYTE mod, BYTE data_lo, BYTE_HI data_hi);
+const char* rm_to_str(BYTE rm, bool w, BYTE mod, short disp_lo, short disp_hi);
 
 void test_regenum_c();
 

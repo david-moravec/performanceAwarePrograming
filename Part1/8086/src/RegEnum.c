@@ -49,7 +49,7 @@ const char* effective_address(int rm) {
     return "NON";
 }
 
-const char* displacement_effective_address(const char* eff_addr, const BYTE_HI displacement) {
+const char* displacement_effective_address(const char* eff_addr, const short displacement) {
     char* buffer;
     buffer = (char *)malloc(20);
     char* sign = "+";
@@ -67,7 +67,7 @@ const char* displacement_effective_address(const char* eff_addr, const BYTE_HI d
 }
 
 
-const char* rm_to_str(const BYTE rm, const bool w, const BYTE mod, const BYTE disp_lo, const BYTE_HI disp_hi) {
+const char* rm_to_str(const BYTE rm, const bool w, const BYTE mod, const short disp_lo, const short disp_hi) {
     char* buffer;
     buffer = (char *)malloc(20);
 
@@ -123,7 +123,6 @@ void test_rm_to_str() {
     disp_lo = -37;
     mod = 0b01;
     to_test = rm_to_str(rm, w, mod, disp_lo, disp_hi);
-    printf("\n%s\n", to_test);
     assert(!strcmp(to_test, "[di - 37]"));
 
     disp_lo = 37;
