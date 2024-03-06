@@ -86,7 +86,7 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
             destination = reg_to_str(reg, w);
             unsigned short int source = w ? data_lo + (data_hi) : data_lo;
             snprintf(instruction_str, 50,
-                     "%s %s, %u",
+                     "%s %s, %i",
                      opcode,
                      destination,
                      source

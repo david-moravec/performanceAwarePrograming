@@ -52,10 +52,13 @@ const char* effective_address(int rm) {
 const char* displacement_effective_address(const char* eff_addr, const BYTE_HI displacement) {
     char* buffer;
     buffer = (char *)malloc(20);
-
+    char* sign = "+";
 
     if (displacement) {
-        snprintf(buffer, 20, "[%s + %u]", eff_addr, displacement);
+        if (displacement < 0) {
+            sign = "-";
+        }
+        snprintf(buffer, 20, "[%s %s %i]", eff_addr, sign, abs(displacement));
     } else {
         snprintf(buffer, 20, "[%s]", eff_addr);
     }
@@ -106,8 +109,8 @@ void test_displacement_effective_address() {
 void test_rm_to_str() {
     BYTE rm = 0b101;
     bool w = false;
-    BYTE disp_lo = 7;
-    unsigned short int disp_hi = 255;
+    char disp_lo = 7;
+    short int disp_hi = 255;
 
     BYTE mod = 0b00;
     const char* to_test = rm_to_str(rm, w, mod, disp_lo, disp_hi);
@@ -117,10 +120,17 @@ void test_rm_to_str() {
     to_test = rm_to_str(rm, w, mod, disp_lo, disp_hi);
     assert(!strcmp(to_test, "[di + 7]"));
 
+    disp_lo = -37;
+    mod = 0b01;
+    to_test = rm_to_str(rm, w, mod, disp_lo, disp_hi);
+    printf("\n%s\n", to_test);
+    assert(!strcmp(to_test, "[di - 37]"));
 
+    disp_lo = 37;
+    disp_hi = 255;
     mod = 0b10;
     to_test = rm_to_str(rm, w, mod, disp_lo, disp_hi);
-    assert(!strcmp(to_test, "[di + 262]"));
+    assert(!strcmp(to_test, "[di + 292]"));
 
     mod = 0b11;
     to_test = rm_to_str(rm, w, mod, disp_lo, disp_hi);
