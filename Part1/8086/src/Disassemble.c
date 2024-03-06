@@ -6,8 +6,6 @@
 
 #include "RegEnum.h"
 
-typedef unsigned char BYTE;
-typedef unsigned short int BYTE_HI;
 typedef unsigned char BINARY_INSTRUCTION[8];
 
 // https://stackoverflow.com/questions/35926722/what-is-the-format-specifier-for-binary-in-c
@@ -65,6 +63,8 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
     BYTE mod = instruction->mod;
     BYTE data_lo = instruction->data_lo;
     BYTE_HI data_hi = instruction->data_hi;
+    BYTE disp_lo = instruction->disp_lo;
+    BYTE_HI disp_hi = instruction->disp_hi;
     bool w = instruction->w;
     bool d = instruction->d;
 
@@ -76,9 +76,9 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
         case MOV:
             if (d) {
               destination = reg_to_str(reg, w);
-              source = rm_to_str(rm, w, mod, data_lo, data_hi);
+              source = rm_to_str(rm, w, mod, disp_lo, disp_hi);
             } else {
-              destination = rm_to_str(rm, w, mod, data_lo, data_hi);
+              destination = rm_to_str(rm, w, mod, disp_lo, disp_hi);
               source = reg_to_str(reg, w);
             };
             break;
@@ -198,10 +198,13 @@ void disassemble_binary_file(FILE* f) {
                 switch (dis_instr.mod) {
                     case 1:
                         bytes_to_read = 1;
+                        break;
                     case 2:
                         bytes_to_read = 2;
+                        break;
                     case 3:
                         bytes_to_read = 0;
+                        break;
                 }
                 break;
             case MOV_IMMEDIATE:
@@ -220,7 +223,9 @@ void disassemble_binary_file(FILE* f) {
             disassemble_rest_of_bytes(buffer, &dis_instr);
         }
 
-        printf("%s\n", disassambled_instruction_to_str(&dis_instr));
+        if (opcode_is_valid(dis_instr.opcode)) {
+            printf("%s\n", disassambled_instruction_to_str(&dis_instr));
+        }
     }
 }
 
