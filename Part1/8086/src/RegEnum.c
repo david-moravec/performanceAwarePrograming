@@ -1,5 +1,8 @@
 #include "RegEnum.h"
+#include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "Disassemble.h"
 
@@ -35,8 +38,8 @@ const char* effective_address(int rm) {
     switch (rm) {
         case 0b000: return "bx + si";
         case 0b001: return "bx + di";
-        case 0b010: return "bx + di";
-        case 0b011: return "bx + di";
+        case 0b010: return "bp + di";
+        case 0b011: return "bp + di";
         case 0b100: return "si";
         case 0b101: return "di";
         case 0b110: return "DIRECT ADDRES";
@@ -46,8 +49,21 @@ const char* effective_address(int rm) {
     return "NON";
 }
 
+const char* displacement_effective_address(const char* eff_addr, unsigned short int displacement) {
+    char* buffer;
+    buffer = (char *)malloc(20);
 
-const char* rm_to_str(int rm, bool w, int mod, BYTE data_lo, BYTE data_hi) {
+    if (displacement) {
+        snprintf(buffer, 20, "[%s + %u]", eff_addr, displacement);
+    } else {
+        snprintf(buffer, 20, "[%s]", eff_addr);
+    }
+
+    return buffer;
+}
+
+
+const char* rm_to_str(const BYTE rm, const bool w, const BYTE mod, const BYTE data_lo, const BYTE data_hi) {
     char* buffer;
     buffer = (char *)malloc(20);
 
@@ -55,20 +71,12 @@ const char* rm_to_str(int rm, bool w, int mod, BYTE data_lo, BYTE data_hi) {
 
     switch (mod) {
         case 0:
-            snprintf(buffer, 20, "[%s]", eff_addr);
-            break;
+            return displacement_effective_address(eff_addr, 0);
         case 1:
-            if (data_lo) {
-                snprintf(buffer, 20, "[%s + %u]", eff_addr, data_lo);
-            }
-            break;
+            return displacement_effective_address(eff_addr, data_lo);
+        case 2:
+            return displacement_effective_address(eff_addr, data_lo + data_hi);
         case 3:
-            unsigned short int data = data_lo + data_hi;
-            if (data) {
-                snprintf(buffer, 20, "[%s + %u]", eff_addr, data);
-            }
-            break;
-        case 4:
             return reg_to_str(rm, w);
 
         return buffer;
@@ -77,6 +85,48 @@ const char* rm_to_str(int rm, bool w, int mod, BYTE data_lo, BYTE data_hi) {
     return "NON";
 }
 
-const char* reg_to_str(int reg, bool w) {
+const char* reg_to_str(BYTE reg, bool w) {
     return w ? Reg16Bits_to_str(reg) : Reg8Bits_to_str(reg);
+}
+
+void test_displacement_effective_address() {
+    const char* eff_addr = effective_address(0b011); // bp + di
+    
+    const char* to_test = displacement_effective_address(eff_addr, 0);
+    assert(!strcmp(to_test, "[bp + di]"));
+
+    to_test = displacement_effective_address(eff_addr, 4);
+    assert(!strcmp(to_test, "[bp + di + 4]"));
+
+    to_test = displacement_effective_address(eff_addr, 763);
+    assert(!strcmp(to_test, "[bp + di + 763]"));
+}
+
+void test_rm_to_str() {
+    BYTE rm = 0b101;
+    bool w = false;
+    BYTE data_lo = 7;
+    unsigned short int data_hi = 255;
+
+    BYTE mod = 0b00;
+    const char* to_test = rm_to_str(rm, w, mod, data_lo, data_hi);
+    assert(!strcmp(to_test, "[di]"));
+
+    mod = 0b01;
+    to_test = rm_to_str(rm, w, mod, data_lo, data_hi);
+    assert(!strcmp(to_test, "[di + 7]"));
+
+
+    mod = 0b10;
+    to_test = rm_to_str(rm, w, mod, data_lo, data_hi);
+    assert(!strcmp(to_test, "[di + 262]"));
+
+    mod = 0b11;
+    to_test = rm_to_str(rm, w, mod, data_lo, data_hi);
+    assert(!strcmp(to_test, "ch"));
+}
+
+void test_regenum_c() {
+    test_displacement_effective_address();
+    test_rm_to_str();
 }

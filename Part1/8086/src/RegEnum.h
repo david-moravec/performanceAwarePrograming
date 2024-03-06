@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "Disassemble.h"
+
 enum Reg8Bits {
     AL = 0,
     CL = 1,
@@ -25,6 +27,9 @@ enum Reg16Bits {
     DI = 7,
 };
 
-const char* reg_to_str(int reg, bool w);
+const char* reg_to_str(BYTE reg, bool w);
+const char* rm_to_str(BYTE rm, bool w, BYTE mod, BYTE data_lo, BYTE data_hi);
+
+void test_regenum_c();
 
 #endif

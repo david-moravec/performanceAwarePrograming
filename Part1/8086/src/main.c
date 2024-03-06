@@ -4,9 +4,11 @@
 #include <stdlib.h>
 
 #include "Disassemble.h"
+#include "RegEnum.h"
 
 int main(int argc, char *argv[]) {
     test_disassemble_c();
+    test_regenum_c();
 
     if (argc == 1) {
         printf("Please provide assembled binary file");

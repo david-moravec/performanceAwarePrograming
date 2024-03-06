@@ -62,6 +62,7 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
 
     BYTE reg = instruction->reg;
     BYTE rm = instruction->rm;
+    BYTE mod = instruction->mod;
     BYTE data_lo = instruction->data_lo;
     BYTE_HI data_hi = instruction->data_hi;
     bool w = instruction->w;
@@ -75,9 +76,9 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
         case MOV:
             if (d) {
               destination = reg_to_str(reg, w);
-              source = reg_to_str(rm, w);
+              source = rm_to_str(rm, w, mod, data_lo, data_hi);
             } else {
-              destination = reg_to_str(rm, w);
+              destination = rm_to_str(rm, w, mod, data_lo, data_hi);
               source = reg_to_str(reg, w);
             };
             break;
