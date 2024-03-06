@@ -147,7 +147,7 @@ static void disassemble_1_byte(const BYTE byte, DisassembledInstruction* dis_ins
         return;
     }
 
-    dis_instr->mod = byte & MOD >> 6;
+    dis_instr->mod = (byte & MOD) >> 6;
     dis_instr->reg = (byte & REG) >> 3;
     dis_instr->rm = byte & RM;
 }
