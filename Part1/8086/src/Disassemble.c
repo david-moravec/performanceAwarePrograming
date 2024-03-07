@@ -19,6 +19,7 @@ void print_byte(BYTE byte)
 
 enum Opcode {
     MOV           = 0b10001000,
+    ADD           = 0b00000000,
     MOV_IMMEDIATE = 0b10110000,
 };
 
@@ -26,6 +27,7 @@ enum Opcode {
 static const char* opcode_to_str(enum Opcode instr) {
     switch (instr) {
         case MOV: return "mov";
+        case ADD: return "add";
         case MOV_IMMEDIATE: return "mov";
     }
     return "NON";
@@ -74,6 +76,15 @@ static const char* disassambled_instruction_to_str(const DisassembledInstruction
 
     switch (instruction->opcode) {
         case MOV:
+            if (d) {
+              destination = reg_to_str(reg, w);
+              source = rm_to_str(rm, w, mod, disp_lo, disp_hi);
+            } else {
+              destination = rm_to_str(rm, w, mod, disp_lo, disp_hi);
+              source = reg_to_str(reg, w);
+            };
+            break;
+        case ADD:
             if (d) {
               destination = reg_to_str(reg, w);
               source = rm_to_str(rm, w, mod, disp_lo, disp_hi);
@@ -131,6 +142,8 @@ static void disassemble_0_byte(const BYTE byte, DisassembledInstruction* dis_ins
         dis_instr->opcode = opcode;
         dis_instr->d = byte & D6;
         dis_instr->w = byte & W6;
+
+        printf("byte %d\nd %d\nw %d\n", byte, dis_instr->d, dis_instr->w);
     }
 
 }
@@ -159,6 +172,12 @@ BYTE_HI high_byte(const BYTE byte) {
 void disassemble_rest_of_bytes(const BINARY_INSTRUCTION binary_instruction, DisassembledInstruction* dis_instr) {
     switch ((*dis_instr).opcode) {
         case MOV:
+            dis_instr->disp_lo = binary_instruction[0];
+            if (dis_instr->mod == 2) {
+                dis_instr->disp_hi =high_byte(binary_instruction[1]);
+            }
+            break;
+        case ADD:
             dis_instr->disp_lo = binary_instruction[0];
             if (dis_instr->mod == 2) {
                 dis_instr->disp_hi =high_byte(binary_instruction[1]);
@@ -193,6 +212,28 @@ void disassemble_binary_file(FILE* f) {
         switch (dis_instr.opcode) {
             case MOV:
                 int succes = fread(&buffer, sizeof(BYTE), 1, f);
+
+                if (!succes) {
+                    printf("\nError: Unexpected EOF\n");
+                    return;
+                }
+
+                disassemble_1_byte(buffer[0], &dis_instr);
+
+                switch (dis_instr.mod) {
+                    case 1:
+                        bytes_to_read = 1;
+                        break;
+                    case 2:
+                        bytes_to_read = 2;
+                        break;
+                    case 3:
+                        bytes_to_read = 0;
+                        break;
+                }
+                break;
+            case ADD:
+                succes = fread(&buffer, sizeof(BYTE), 1, f);
 
                 if (!succes) {
                     printf("\nError: Unexpected EOF\n");
