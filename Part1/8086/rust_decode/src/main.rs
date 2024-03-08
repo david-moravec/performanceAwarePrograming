@@ -2,6 +2,9 @@ use std::fs;
 use std::io::Read;
 use std::{env, io};
 
+mod assembled_instruction;
+mod instruction;
+
 const MEMORY_SIZE: usize = 1024 * 1024; //BYTES
 const MEMORY_MASK: usize = MEMORY_SIZE - 1;
 
