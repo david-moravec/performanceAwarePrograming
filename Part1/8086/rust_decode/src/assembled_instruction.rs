@@ -1,5 +1,6 @@
 use crate::instruction::instruction::Operation;
 
+#[derive(Clone, Copy)]
 enum BitUsage {
     LITERAL,
     MOD,
@@ -16,6 +17,7 @@ enum BitUsage {
     DISPHI,
 }
 
+#[derive(Clone, Copy)]
 struct Bits {
     usage: BitUsage,
     size: u8,
@@ -32,42 +34,50 @@ impl Bits {
     }
 }
 
-const MOD: Bits = Bits {
-    usage: BitUsage::MOD,
-    size: 2,
-    value: None,
-};
+macro_rules! bits {
+    ($val:expr) => {
+        Bits::literal($val)
+    };
+    ($usage:expr, $size:expr) => {
+        Bits {
+            usage: $usage,
+            size: $size,
+            value: None,
+        }
+    };
+}
 
-const REG: Bits = Bits {
-    usage: BitUsage::REG,
-    size: 3,
-    value: None,
-};
-
-const RM: Bits = Bits {
-    usage: BitUsage::RM,
-    size: 3,
-    value: None,
-};
-
-const D: Bits = Bits {
-    usage: BitUsage::D,
-    size: 1,
-    value: None,
-};
-
-const W: Bits = Bits {
-    usage: BitUsage::W,
-    size: 1,
-    value: None,
-};
+const MOD: Bits = bits!(BitUsage::MOD, 2);
+const REG: Bits = bits!(BitUsage::REG, 3);
+const RM: Bits = bits!(BitUsage::RM, 3);
+const D: Bits = bits!(BitUsage::D, 1);
+const W: Bits = bits!(BitUsage::W, 1);
 
 pub struct AssembledInstruction {
     operation: Operation,
-    bits: [Bits; 6],
+    bits: [Option<Bits>; 16],
 }
 
-pub const INSTRUCTION_TABLE: [AssembledInstruction; 1] = [AssembledInstruction {
-    operation: Operation::MOV,
-    bits: [Bits::literal(0b100010), D, W, MOD, REG, RM],
-}];
+macro_rules! INSTR {
+    ($operation:expr, $($bits:expr),+) => {
+        {
+            let mut bits: [Option<Bits>; 16] = [None; 16];
+            let mut i: usize = 0;
+
+            $(
+                bits[i] = Some($bits);
+                i += 1;
+            )+
+
+            AssembledInstruction {
+                operation: $operation,
+                bits: bits
+            }
+        }
+    };
+}
+
+use crate::instruction::instruction::Operation::*;
+
+pub const INSTRUCTION_TABLE: [AssembledInstruction; 1] =
+    [INSTR!(MOV, bits!(0b100010), D, W, MOD, REG, RM)];
