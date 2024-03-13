@@ -7,6 +7,7 @@ pub struct Instruction {
     single_bits: SingleBits,
 }
 
+#[derive(Debug)]
 pub enum Operation {
     MOV,
 }

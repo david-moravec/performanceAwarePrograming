@@ -1,9 +1,13 @@
+#![allow(dead_code)]
 use std::fs;
 use std::io::Read;
 use std::{env, io};
 
 mod assembled_instruction;
+mod disassemble;
 mod instruction;
+
+use disassemble::disassemble_8086;
 
 const MEMORY_SIZE: usize = 1024 * 1024; //BYTES
 const MEMORY_MASK: usize = MEMORY_SIZE - 1;
@@ -19,12 +23,6 @@ fn load_memory_from_file(file_name: &str, memory: &mut Memory) -> Result<usize, 
     Ok(file_size as usize & MEMORY_MASK)
 }
 
-fn disassemble_8086(memory: &Memory, n_bytes_read: usize) {
-    for i in 0..n_bytes_read {
-        println!("byte {:?}: {:b}", i, memory[i]);
-    }
-}
-
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -35,10 +33,8 @@ fn main() {
 
     let mut memory: Memory = vec![0; MEMORY_SIZE];
 
-    let n_bytes_read = load_memory_from_file(&args[1], &mut memory);
+    let n_bytes_read = load_memory_from_file(&args[1], &mut memory)
+        .expect("Error occured when trying to disassemble");
 
-    match n_bytes_read {
-        Ok(n) => disassemble_8086(&memory, n),
-        Err(e) => eprintln!("Error occured when disassmebling file {e}"),
-    }
+    disassemble_8086(&memory, n_bytes_read);
 }

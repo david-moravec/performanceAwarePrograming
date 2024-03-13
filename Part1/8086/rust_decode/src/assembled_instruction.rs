@@ -1,6 +1,6 @@
 use crate::instruction::instruction::Operation;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum BitUsage {
     LITERAL,
     MOD,
@@ -17,9 +17,10 @@ enum BitUsage {
     DISPHI,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Bits {
     usage: BitUsage,
+    shift: u8,
     size: u8,
     value: Option<u8>,
 }
@@ -29,6 +30,7 @@ impl Bits {
         Bits {
             usage: BitUsage::LITERAL,
             value: Some(value),
+            shift: value.leading_zeros() as u8,
             size: 8 - value.leading_zeros() as u8,
         }
     }
@@ -42,6 +44,7 @@ macro_rules! bits {
         Bits {
             usage: $usage,
             size: $size,
+            shift: 0,
             value: None,
         }
     };
@@ -52,10 +55,30 @@ const REG: Bits = bits!(BitUsage::REG, 3);
 const RM: Bits = bits!(BitUsage::RM, 3);
 const D: Bits = bits!(BitUsage::D, 1);
 const W: Bits = bits!(BitUsage::W, 1);
+const DATA_LO: Bits = bits!(BitUsage::DATALO, 8);
+const DATA_HI: Bits = bits!(BitUsage::DATAHI, 8);
+const DISP_LO: Bits = bits!(BitUsage::DISPLO, 8);
+const DISP_HI: Bits = bits!(BitUsage::DISPHI, 8);
 
+#[derive(Debug)]
 pub struct AssembledInstruction {
-    operation: Operation,
+    pub operation: Operation,
     bits: [Option<Bits>; 16],
+}
+
+impl AssembledInstruction {
+    pub fn matches_byte(&self, byte: u8) -> bool {
+        let literal = self
+            .bits
+            .into_iter()
+            .filter(|bits| bits.map_or(false, |b| matches!(b.usage, BitUsage::LITERAL)))
+            .next()
+            .flatten();
+
+        literal.map_or(false, |lit| {
+            lit.value.map_or(false, |val| val == byte >> lit.shift)
+        })
+    }
 }
 
 macro_rules! INSTR {
@@ -65,8 +88,11 @@ macro_rules! INSTR {
             let mut i: usize = 0;
 
             $(
-                bits[i] = Some($bits);
-                i += 1;
+                #[allow(unused_assignments)]
+                {
+                    bits[i] = Some($bits);
+                    i += 1;
+                }
             )+
 
             AssembledInstruction {
@@ -79,5 +105,34 @@ macro_rules! INSTR {
 
 use crate::instruction::instruction::Operation::*;
 
-pub const INSTRUCTION_TABLE: [AssembledInstruction; 1] =
-    [INSTR!(MOV, bits!(0b100010), D, W, MOD, REG, RM)];
+const INSTRUCTION_TABLE: [AssembledInstruction; 2] = [
+    INSTR!(MOV, bits!(0b100010), D, W, MOD, REG, RM, DISP_LO, DISP_HI),
+    INSTR!(MOV, bits!(0b1011), W, REG, DATA_LO, DATA_HI),
+];
+
+#[derive(Debug)]
+pub struct InstructionUndefinedError;
+
+pub fn get_assembled_instruction(
+    byte: u8,
+) -> Result<AssembledInstruction, InstructionUndefinedError> {
+    for instr in INSTRUCTION_TABLE {
+        if instr.matches_byte(byte) {
+            return Ok(instr);
+        }
+    }
+
+    Err(InstructionUndefinedError)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_assembled_instruction;
+
+    #[test]
+    fn test_get_assembled_instruction() {
+        assert!(get_assembled_instruction(0b10001011).is_ok());
+        assert!(get_assembled_instruction(0b10110000).is_ok());
+        assert!(get_assembled_instruction(0b10000000).is_err());
+    }
+}
