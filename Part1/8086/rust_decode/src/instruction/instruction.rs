@@ -10,4 +10,5 @@ pub struct Instruction {
 #[derive(Debug)]
 pub enum Operation {
     MOV,
+    ADD,
 }

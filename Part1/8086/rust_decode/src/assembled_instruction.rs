@@ -26,19 +26,19 @@ struct Bits {
 }
 
 impl Bits {
-    pub const fn literal(value: u8) -> Self {
+    pub const fn literal(value: u8, size: u8) -> Self {
         Bits {
             usage: BitUsage::LITERAL,
             value: Some(value),
-            shift: value.leading_zeros() as u8,
-            size: 8 - value.leading_zeros() as u8,
+            shift: 8 - size,
+            size,
         }
     }
 }
 
 macro_rules! bits {
-    ($val:expr) => {
-        Bits::literal($val)
+    ($val:expr; $size:expr) => {
+        Bits::literal($val, $size)
     };
     ($usage:expr, $size:expr) => {
         Bits {
@@ -105,9 +105,30 @@ macro_rules! INSTR {
 
 use crate::instruction::instruction::Operation::*;
 
-const INSTRUCTION_TABLE: [AssembledInstruction; 2] = [
-    INSTR!(MOV, bits!(0b100010), D, W, MOD, REG, RM, DISP_LO, DISP_HI),
-    INSTR!(MOV, bits!(0b1011), W, REG, DATA_LO, DATA_HI),
+const INSTRUCTION_TABLE: [AssembledInstruction; 3] = [
+    INSTR!(
+        MOV,
+        bits!(0b100010; 6),
+        D,
+        W,
+        MOD,
+        REG,
+        RM,
+        DISP_LO,
+        DISP_HI
+    ),
+    INSTR!(MOV, bits!(0b1011; 4), W, REG, DATA_LO, DATA_HI),
+    INSTR!(
+        ADD,
+        bits!(0b000000; 6),
+        D,
+        W,
+        MOD,
+        REG,
+        RM,
+        DISP_LO,
+        DISP_HI
+    ),
 ];
 
 #[derive(Debug)]
@@ -133,6 +154,7 @@ mod tests {
     fn test_get_assembled_instruction() {
         assert!(get_assembled_instruction(0b10001011).is_ok());
         assert!(get_assembled_instruction(0b10110000).is_ok());
+        assert!(get_assembled_instruction(0b00000000).is_ok());
         assert!(get_assembled_instruction(0b10000000).is_err());
     }
 }
