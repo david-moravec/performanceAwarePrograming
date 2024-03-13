@@ -7,17 +7,19 @@ use super::Memory;
 pub struct DisassemblyError;
 
 pub fn disassemble_8086(memory: &Memory, n_bytes_read: usize) -> Result<(), DisassemblyError> {
-    let mut assembled_instr_opt: Option<AssembledInstruction> = None;
-    let mut _instruction: Instruction;
+    let mut i = 0;
 
-    for i in 0..n_bytes_read {
-        let byte = memory[i];
+    while i < n_bytes_read {
+        let pending_byte = memory[i];
 
-        if let Some(instr) = assembled_instr_opt {
-            println!("{:?}", instr.operation)
+        let assembled_instr_opt = get_assembled_instruction(pending_byte).ok();
+
+        if let Some(ass_instr) = assembled_instr_opt {
+            let operation = ass_instr.operation;
+
+            for test_bits in ass_instr.bits {}
         }
-
-        assembled_instr_opt = get_assembled_instruction(byte).ok();
+        i += 1;
     }
 
     Ok(())

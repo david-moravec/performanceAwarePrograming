@@ -18,9 +18,9 @@ enum BitUsage {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Bits {
+pub struct Bits {
     usage: BitUsage,
-    shift: u8,
+    pub shift: u8,
     size: u8,
     value: Option<u8>,
 }
@@ -63,7 +63,7 @@ const DISP_HI: Bits = bits!(BitUsage::DISPHI, 8);
 #[derive(Debug)]
 pub struct AssembledInstruction {
     pub operation: Operation,
-    bits: [Option<Bits>; 16],
+    pub bits: [Option<Bits>; 16],
 }
 
 impl AssembledInstruction {
@@ -86,10 +86,14 @@ macro_rules! INSTR {
         {
             let mut bits: [Option<Bits>; 16] = [None; 16];
             let mut i: usize = 0;
+            let mut shift = 8;
 
             $(
                 #[allow(unused_assignments)]
                 {
+                    if shift == 0 {shift = 8};
+                    shift -= $bits.size;
+                    $bits.shift = shift;
                     bits[i] = Some($bits);
                     i += 1;
                 }
