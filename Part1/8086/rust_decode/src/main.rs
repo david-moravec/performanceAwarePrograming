@@ -1,4 +1,8 @@
 #![allow(dead_code)]
+
+#[macro_use]
+extern crate lazy_static;
+
 use std::fs;
 use std::io::Read;
 use std::{env, io};

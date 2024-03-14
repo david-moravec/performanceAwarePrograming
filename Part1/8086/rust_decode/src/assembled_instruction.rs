@@ -22,9 +22,9 @@ enum BitUsage {
 #[derive(Debug, Clone, Copy)]
 pub struct Bits {
     usage: BitUsage,
-    pub shift: u8,
     size: u8,
     value: Option<u8>,
+    pub shift: Option<u8>,
 }
 
 impl Bits {
@@ -32,7 +32,7 @@ impl Bits {
         Bits {
             usage: BitUsage::LITERAL,
             value: Some(value),
-            shift: 8 - size,
+            shift: Some(8 - size),
             size,
         }
     }
@@ -51,7 +51,7 @@ macro_rules! bits {
         Bits {
             usage: $usage,
             size: $size,
-            shift: 0,
+            shift: None,
             value: None,
         }
     };
@@ -89,7 +89,8 @@ impl AssembledInstruction {
             .bits[0]
             .ok_or(DisassemblyError::IncompleteInstructionDefinitionError)?;
 
-        Ok(literal.value.expect("Literal has to have a value") == byte >> literal.shift)
+        Ok(literal.value.expect("Literal has to have a value")
+            == byte >> literal.shift.expect("Should not Fail"))
     }
 }
 
@@ -119,11 +120,16 @@ macro_rules! INSTR {
         {
             let mut bits: [Option<Bits>; 8] = [None; 8];
             let mut i: usize = 0;
+            let mut shift = 8;
 
-            let n_bits = $byte.len();
+            while i < $byte.len() {
+                let mut bits_cp: Bits = $byte[i].clone();
+                shift -= bits_cp.size;
+                if let None = bits_cp.shift {
+                    bits_cp.shift = Some(shift);
+                }
 
-            while i < n_bits {
-                bits[i] = Some($byte[i]);
+                bits[i] = Some(bits_cp);
                 i += 1;
             }
 
@@ -134,25 +140,27 @@ macro_rules! INSTR {
 
 use crate::instruction::instruction::Operation::*;
 
-const INSTRUCTION_TABLE: [AssembledInstruction; 3] = [
-    INSTR!(MOV, [Bits::literal(0b100010, 6), D, W], [MOD, REG, RM]),
-    INSTR!(
-        MOV,
-        [Bits::literal(0b1011, 4), W, REG],
-        [DATA_LO],
-        [DATA_HI]
-    ),
-    INSTR!(
-        ADD,
-        [Bits::literal(0b000000, 6), D, W],
-        [MOD, REG, RM],
-        [DISP_LO],
-        [DISP_HI]
-    ),
-];
+lazy_static! {
+    static ref INSTRUCTION_TABLE: [AssembledInstruction; 3] = [
+        INSTR!(MOV, [Bits::literal(0b100010, 6), D, W], [MOD, REG, RM]),
+        INSTR!(
+            MOV,
+            [Bits::literal(0b1011, 4), W, REG],
+            [DATA_LO],
+            [DATA_HI]
+        ),
+        INSTR!(
+            ADD,
+            [Bits::literal(0b000000, 6), D, W],
+            [MOD, REG, RM],
+            [DISP_LO],
+            [DISP_HI]
+        ),
+    ];
+}
 
-pub fn get_assembled_instruction(byte: u8) -> DisassemblyResult<AssembledInstruction> {
-    for instr in INSTRUCTION_TABLE {
+pub fn get_assembled_instruction(byte: u8) -> DisassemblyResult<&'static AssembledInstruction> {
+    for instr in INSTRUCTION_TABLE.iter() {
         if instr.literal_in(byte)? {
             return Ok(instr);
         }
@@ -163,7 +171,7 @@ pub fn get_assembled_instruction(byte: u8) -> DisassemblyResult<AssembledInstruc
 
 #[cfg(test)]
 mod tests {
-    use super::get_assembled_instruction;
+    use super::{get_assembled_instruction, INSTRUCTION_TABLE};
 
     #[test]
     fn test_get_assembled_instruction() {
@@ -171,5 +179,27 @@ mod tests {
         assert!(get_assembled_instruction(0b10110000).is_ok());
         assert!(get_assembled_instruction(0b00000000).is_ok());
         assert!(get_assembled_instruction(0b10000000).is_err());
+    }
+
+    #[test]
+    fn test_shift() {
+        assert_eq!(
+            INSTRUCTION_TABLE[0].bytes[0].unwrap().bits[1]
+                .unwrap()
+                .shift,
+            Some(1)
+        );
+        assert_eq!(
+            INSTRUCTION_TABLE[0].bytes[1].unwrap().bits[0]
+                .unwrap()
+                .shift,
+            Some(6)
+        );
+        assert_eq!(
+            INSTRUCTION_TABLE[1].bytes[0].unwrap().bits[1]
+                .unwrap()
+                .shift,
+            Some(3)
+        );
     }
 }

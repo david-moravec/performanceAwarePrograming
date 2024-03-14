@@ -15,9 +15,9 @@ pub fn disassemble_8086(memory: &Memory, n_bytes_read: usize) -> Result<(), Disa
         let assembled_instr_opt = get_assembled_instruction(pending_byte).ok();
 
         if let Some(ass_instr) = assembled_instr_opt {
-            let operation = ass_instr.operation;
+            let operation = &ass_instr.operation;
 
-            for test_bits in ass_instr.bytes {}
+            for test_bits in &ass_instr.bytes {}
         }
         i += 1;
     }
