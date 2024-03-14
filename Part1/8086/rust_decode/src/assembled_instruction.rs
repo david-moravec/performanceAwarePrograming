@@ -15,6 +15,8 @@ enum BitUsage {
     DATAHI,
     DISPLO,
     DISPHI,
+
+    PLACEHOLDER,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -34,6 +36,11 @@ impl Bits {
             size,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Byte {
+    bits: [Option<Bits>; 8],
 }
 
 macro_rules! bits {
@@ -63,91 +70,95 @@ const DISP_HI: Bits = bits!(BitUsage::DISPHI, 8);
 #[derive(Debug)]
 pub struct AssembledInstruction {
     pub operation: Operation,
-    pub bits: [Option<Bits>; 16],
+    pub bytes: [Option<Byte>; 6],
 }
 
-impl AssembledInstruction {
-    pub fn matches_byte(&self, byte: u8) -> bool {
-        let literal = self
-            .bits
-            .into_iter()
-            .filter(|bits| bits.map_or(false, |b| matches!(b.usage, BitUsage::LITERAL)))
-            .next()
-            .flatten();
+#[derive(Debug)]
+pub enum DisassemblyError {
+    IncompleteInstructionDefinitionError,
+    LiteralNotFoundError,
+    InstructionUndefinedError,
+}
 
-        literal.map_or(false, |lit| {
-            lit.value.map_or(false, |val| val == byte >> lit.shift)
-        })
+type DisassemblyResult<T> = Result<T, DisassemblyError>;
+
+impl AssembledInstruction {
+    pub fn literal_in(&self, byte: u8) -> DisassemblyResult<bool> {
+        let literal = self.bytes[0]
+            .ok_or(DisassemblyError::IncompleteInstructionDefinitionError)?
+            .bits[0]
+            .ok_or(DisassemblyError::IncompleteInstructionDefinitionError)?;
+
+        Ok(literal.value.expect("Literal has to have a value") == byte >> literal.shift)
     }
 }
 
 macro_rules! INSTR {
-    ($operation:expr, $($bits:expr),+) => {
+    ($operation:expr, $($bytes:expr),+) => {
         {
-            let mut bits: [Option<Bits>; 16] = [None; 16];
+
+            let mut bytes: [Option<Byte>; 6] = [None; 6];
             let mut i: usize = 0;
-            let mut shift = 8;
+
 
             $(
                 #[allow(unused_assignments)]
                 {
-                    if shift == 0 {shift = 8};
-                    shift -= $bits.size;
-                    $bits.shift = shift;
-                    bits[i] = Some($bits);
+                    bytes[i] = INSTR!(@explode_byte $bytes);
                     i += 1;
                 }
             )+
 
             AssembledInstruction {
                 operation: $operation,
-                bits: bits
+                bytes: bytes
             }
         }
     };
+    (@explode_byte $byte:expr) => {
+        {
+            let mut bits: [Option<Bits>; 8] = [None; 8];
+            let mut i: usize = 0;
+
+            let n_bits = $byte.len();
+
+            while i < n_bits {
+                bits[i] = Some($byte[i]);
+                i += 1;
+            }
+
+            Some(Byte {bits})
+        }
+    }
 }
 
 use crate::instruction::instruction::Operation::*;
 
 const INSTRUCTION_TABLE: [AssembledInstruction; 3] = [
+    INSTR!(MOV, [Bits::literal(0b100010, 6), D, W], [MOD, REG, RM]),
     INSTR!(
         MOV,
-        bits!(0b100010; 6),
-        D,
-        W,
-        MOD,
-        REG,
-        RM,
-        DISP_LO,
-        DISP_HI
+        [Bits::literal(0b1011, 4), W, REG],
+        [DATA_LO],
+        [DATA_HI]
     ),
-    INSTR!(MOV, bits!(0b1011; 4), W, REG, DATA_LO, DATA_HI),
     INSTR!(
         ADD,
-        bits!(0b000000; 6),
-        D,
-        W,
-        MOD,
-        REG,
-        RM,
-        DISP_LO,
-        DISP_HI
+        [Bits::literal(0b000000, 6), D, W],
+        [MOD, REG, RM],
+        [DISP_LO],
+        [DISP_HI]
     ),
 ];
 
-#[derive(Debug)]
-pub struct InstructionUndefinedError;
-
-pub fn get_assembled_instruction(
-    byte: u8,
-) -> Result<AssembledInstruction, InstructionUndefinedError> {
+pub fn get_assembled_instruction(byte: u8) -> DisassemblyResult<AssembledInstruction> {
     for instr in INSTRUCTION_TABLE {
-        if instr.matches_byte(byte) {
+        if instr.literal_in(byte)? {
             return Ok(instr);
         }
     }
 
-    Err(InstructionUndefinedError)
+    Err(DisassemblyError::InstructionUndefinedError)
 }
 
 #[cfg(test)]
