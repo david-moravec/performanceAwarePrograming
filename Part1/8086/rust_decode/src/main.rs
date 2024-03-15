@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate lazy_static;
+extern crate bitflags;
 
 use std::fs;
 use std::io::Read;
@@ -11,20 +12,54 @@ mod assembled_instruction;
 mod disassemble;
 mod instruction;
 
-use disassemble::disassemble_8086;
+use disassemble::disassemble_bytes_in;
 
 const MEMORY_SIZE: usize = 1024 * 1024; //BYTES
 const MEMORY_MASK: usize = MEMORY_SIZE - 1;
 
-type Memory = Vec<u8>;
+pub struct InstructionBuffer {
+    buf: Vec<u8>,
+    last_read: usize,
+    bytes_loaded: usize,
+}
 
-fn load_memory_from_file(file_name: &str, memory: &mut Memory) -> Result<usize, io::Error> {
-    let mut f = fs::File::open(file_name)?;
-    let file_size = fs::metadata(file_name)?.len();
+#[derive(Debug)]
+pub struct BufferEndReachedError;
 
-    f.read(memory)?;
+impl InstructionBuffer {
+    pub fn new(file_name: &str) -> Result<Self, io::Error> {
+        let mut f = fs::File::open(file_name)?;
+        let file_size = fs::metadata(file_name)?.len();
 
-    Ok(file_size as usize & MEMORY_MASK)
+        let mut buf: Vec<u8> = vec![0; MEMORY_SIZE];
+
+        f.read(&mut buf)?;
+
+        Ok(InstructionBuffer {
+            buf,
+            last_read: 0,
+            bytes_loaded: file_size as usize & MEMORY_MASK,
+        })
+    }
+
+    pub fn next_n_bytes(&mut self, n: usize) -> Result<Vec<u8>, BufferEndReachedError> {
+        let last_read = self.last_read;
+        let read_until = last_read + n;
+
+        if read_until > self.bytes_loaded {
+            return Err(BufferEndReachedError);
+        }
+
+        self.last_read = read_until;
+        Ok(self.buf[last_read..read_until]
+            .iter()
+            .map(|bit| *bit)
+            .collect::<Vec<u8>>())
+    }
+
+    pub fn next_byte(&mut self) -> Result<u8, BufferEndReachedError> {
+        Ok(self.next_n_bytes(1)?[0])
+    }
 }
 
 fn main() {
@@ -35,10 +70,12 @@ fn main() {
         return;
     }
 
-    let mut memory: Memory = vec![0; MEMORY_SIZE];
+    let buffer = InstructionBuffer::new(&args[1]).expect("Loading instruction to buffer failed");
 
-    let n_bytes_read = load_memory_from_file(&args[1], &mut memory)
-        .expect("Error occured when trying to disassemble");
+    let disassembled_instructions =
+        disassemble_bytes_in(buffer).expect("Disassembly of Instructions failed");
 
-    disassemble_8086(&memory, n_bytes_read);
+    for instruction in disassembled_instructions {
+        println!("{:?}", instruction);
+    }
 }

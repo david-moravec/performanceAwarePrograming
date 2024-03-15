@@ -1,27 +1,41 @@
-use crate::instruction::instruction::Operation;
+use std::fmt::Display;
+
+use bitflags::bitflags;
 
 #[derive(Debug, Clone, Copy)]
-enum BitUsage {
+pub enum BitUsage {
     LITERAL,
     MOD,
     REG,
     RM,
-    W,
-    S,
-    D,
-    V,
-    Z,
-    DATALO,
-    DATAHI,
-    DISPLO,
-    DISPHI,
+    Flag(BitFlag),
+    Data(BitOrder),
+    Disp(BitOrder),
 
     PLACEHOLDER,
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum BitOrder {
+    LOW,
+    HIGH,
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct BitFlag: u8 {
+        const W = 0b00001;
+        const S = 0b00010;
+        const D = 0b00100;
+        const V = 0b01000;
+        const Z = 0b10000;
+        const NOTHING = 0b00000;
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Bits {
-    usage: BitUsage,
+    pub usage: BitUsage,
     size: u8,
     value: Option<u8>,
     pub shift: Option<u8>,
@@ -36,16 +50,29 @@ impl Bits {
             size,
         }
     }
+
+    pub fn decode_value(&self, byte: u8) -> u8 {
+        byte >> self.shift.expect("Every bits need shift specified")
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Byte {
-    bits: [Option<Bits>; 8],
+    pub bits: [Option<Bits>; 8],
 }
 
 macro_rules! bits {
     ($val:expr; $size:expr) => {
         Bits::literal($val, $size)
+    };
+    (-f $bit_flag:expr) => {
+        bits!(BitUsage::Flag($bit_flag), 1)
+    };
+    (-data $bit_order:expr) => {
+        bits!(BitUsage::Data($bit_order), 8)
+    };
+    (-disp $bit_order:expr) => {
+        bits!(BitUsage::Disp($bit_order), 8)
     };
     ($usage:expr, $size:expr) => {
         Bits {
@@ -60,34 +87,38 @@ macro_rules! bits {
 const MOD: Bits = bits!(BitUsage::MOD, 2);
 const REG: Bits = bits!(BitUsage::REG, 3);
 const RM: Bits = bits!(BitUsage::RM, 3);
-const D: Bits = bits!(BitUsage::D, 1);
-const W: Bits = bits!(BitUsage::W, 1);
-const DATA_LO: Bits = bits!(BitUsage::DATALO, 8);
-const DATA_HI: Bits = bits!(BitUsage::DATAHI, 8);
-const DISP_LO: Bits = bits!(BitUsage::DISPLO, 8);
-const DISP_HI: Bits = bits!(BitUsage::DISPHI, 8);
+const D: Bits = bits!(-f BitFlag::D);
+const W: Bits = bits!(-f BitFlag::W);
+const DATA_LO: Bits = bits!(-data BitOrder::LOW);
+const DATA_HI: Bits = bits!(-data BitOrder::HIGH);
+const DISP_LO: Bits = bits!(-disp BitOrder::LOW);
+const DISP_HI: Bits = bits!(-disp BitOrder::HIGH);
 
 #[derive(Debug)]
+pub enum AssembledInstructionLookupError {
+    IncompleteDefinitionError,
+    LiteralMissingError,
+    InstructionUndefinedError,
+}
+
+type InstuctionLookupResult<T> = Result<T, AssembledInstructionLookupError>;
+
+#[derive(Debug, Clone, Copy)]
 pub struct AssembledInstruction {
     pub operation: Operation,
     pub bytes: [Option<Byte>; 6],
 }
 
-#[derive(Debug)]
-pub enum DisassemblyError {
-    IncompleteInstructionDefinitionError,
-    LiteralNotFoundError,
-    InstructionUndefinedError,
-}
-
-type DisassemblyResult<T> = Result<T, DisassemblyError>;
-
 impl AssembledInstruction {
-    pub fn literal_in(&self, byte: u8) -> DisassemblyResult<bool> {
+    pub fn literal_in(&self, byte: u8) -> InstuctionLookupResult<bool> {
         let literal = self.bytes[0]
-            .ok_or(DisassemblyError::IncompleteInstructionDefinitionError)?
+            .ok_or(AssembledInstructionLookupError::IncompleteDefinitionError)?
             .bits[0]
-            .ok_or(DisassemblyError::IncompleteInstructionDefinitionError)?;
+            .ok_or(AssembledInstructionLookupError::IncompleteDefinitionError)?;
+
+        let _ = matches!(literal.usage, BitUsage::LITERAL)
+            .then(|| ())
+            .ok_or(AssembledInstructionLookupError::LiteralMissingError)?;
 
         Ok(literal.value.expect("Literal has to have a value")
             == byte >> literal.shift.expect("Should not Fail"))
@@ -138,7 +169,26 @@ macro_rules! INSTR {
     }
 }
 
-use crate::instruction::instruction::Operation::*;
+#[derive(Debug, Clone, Copy)]
+pub enum Operation {
+    MOV,
+    ADD,
+}
+
+use std::fmt;
+
+impl fmt::Display for Operation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let str_repr = match self {
+            MOV => "mov",
+            ADD => "add",
+        };
+
+        write!(f, "{}", str_repr)
+    }
+}
+
+use Operation::*;
 
 lazy_static! {
     static ref INSTRUCTION_TABLE: [AssembledInstruction; 3] = [
@@ -159,14 +209,14 @@ lazy_static! {
     ];
 }
 
-pub fn get_assembled_instruction(byte: u8) -> DisassemblyResult<&'static AssembledInstruction> {
+pub fn get_assembled_instruction(byte: u8) -> InstuctionLookupResult<AssembledInstruction> {
     for instr in INSTRUCTION_TABLE.iter() {
         if instr.literal_in(byte)? {
-            return Ok(instr);
+            return Ok(instr.clone());
         }
     }
 
-    Err(DisassemblyError::InstructionUndefinedError)
+    Err(AssembledInstructionLookupError::InstructionUndefinedError)
 }
 
 #[cfg(test)]
