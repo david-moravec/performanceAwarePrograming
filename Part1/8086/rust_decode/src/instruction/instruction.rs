@@ -7,6 +7,7 @@ pub enum DecodingError {
     FieldAlreadyDecodedError,
     FieldNotYetDecodedError,
     InstructionNotRecognizedError(String),
+    UnexpectedDecodedValueError(u8),
     Error(String),
 }
 
@@ -33,11 +34,13 @@ pub struct Instruction {
 
 impl Instruction {
     pub fn set_flag(&mut self, flag: BitFlag, value: u8) -> Result<(), DecodingError> {
-        if value != 0 {
-            self.flags = self.flags | flag;
+        if value == 1 {
+            Ok(self.flags = self.flags | flag)
+        } else if value == 0 {
+            Ok(())
+        } else {
+            Err(DecodingError::UnexpectedDecodedValueError(value))
         }
-
-        Ok(())
     }
 
     pub fn set_rm(&mut self, value: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
@@ -58,6 +61,10 @@ impl Instruction {
             },
             None => Ok(()),
         }
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.rm.is_some() & self.reg.is_some()
     }
 
     pub fn new(byte: u8) -> Result<Self, DecodingError> {
@@ -96,10 +103,6 @@ impl Instruction {
         Ok(instr)
     }
 
-    pub fn is_finished(&self) -> bool {
-        self.rm.is_some() & self.reg.is_some()
-    }
-
     pub fn continue_disassembly(&mut self, byte: u8) -> Result<usize, DecodingError> {
         let second_byte: Byte = self.ass_instr.bytes[1]
             .ok_or(DecodingError::InvalidBitUsageError("Exp".to_string()))?;
@@ -136,5 +139,62 @@ impl Instruction {
 
     pub fn finalize_disassembly(&mut self, byte: Vec<u8>) -> Result<(), DecodingError> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::instruction::operand::{Displacement, OperandType, Size};
+
+    use super::*;
+
+    static TEST_INSTRUCTION: u16 = 0b1000101111011001;
+    static TEST_INSTRUCTION2: u16 = 0b1000101110011001;
+
+    #[test]
+    fn test_instruction_new() {
+        let instr = Instruction::new(TEST_INSTRUCTION.to_be_bytes()[0]).unwrap();
+
+        assert!(matches!(instr.operation, Operation::MOV));
+        assert!(instr.flags & BitFlag::W == BitFlag::W);
+
+        let instr = Instruction::new(TEST_INSTRUCTION2.to_be_bytes()[0]).unwrap();
+
+        assert!(matches!(instr.operation, Operation::MOV));
+        assert!(instr.flags == BitFlag::W | BitFlag::D);
+    }
+
+    #[test]
+    fn test_instruction_continue_disassembly() {
+        let mut instr = Instruction::new(TEST_INSTRUCTION.to_be_bytes()[0]).unwrap();
+
+        instr
+            .continue_disassembly(TEST_INSTRUCTION.to_be_bytes()[1])
+            .unwrap();
+
+        assert!(matches!(
+            instr.reg.unwrap().operand_type.unwrap(),
+            OperandType::REGISTER(Size::WORD)
+        ));
+        assert!(matches!(
+            instr.rm.unwrap().operand_type.unwrap(),
+            OperandType::REGISTER(Size::WORD)
+        ));
+
+        let mut instr = Instruction::new(TEST_INSTRUCTION2.to_be_bytes()[0]).unwrap();
+
+        instr
+            .continue_disassembly(TEST_INSTRUCTION2.to_be_bytes()[1])
+            .unwrap();
+
+        assert!(matches!(
+            instr.reg.unwrap().operand_type.unwrap(),
+            OperandType::REGISTER(Size::WORD)
+        ));
+        let rm_type = instr.rm.as_ref().unwrap().operand_type.as_ref().unwrap();
+        assert!(matches!(
+            rm_type,
+            OperandType::MEMORY(Displacement::YES(Size::WORD))
+        ));
     }
 }

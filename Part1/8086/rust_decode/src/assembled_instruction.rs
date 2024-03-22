@@ -51,8 +51,20 @@ impl Bits {
         }
     }
 
+    const fn mask(&self) -> u8 {
+        let mut i = 0;
+        let mut mask: u8 = 1;
+
+        while i < self.size {
+            mask = mask | 1 << i;
+            i += 1;
+        }
+
+        mask
+    }
+
     pub fn decode_value(&self, byte: u8) -> u8 {
-        byte >> self.shift.expect("Every bits need shift specified")
+        byte >> self.shift.expect("Every bits need shift specified") & self.mask()
     }
 }
 
@@ -221,7 +233,7 @@ pub fn get_assembled_instruction(byte: u8) -> InstuctionLookupResult<AssembledIn
 
 #[cfg(test)]
 mod tests {
-    use super::{get_assembled_instruction, INSTRUCTION_TABLE};
+    use super::*;
 
     #[test]
     fn test_get_assembled_instruction() {
@@ -251,5 +263,19 @@ mod tests {
                 .shift,
             Some(3)
         );
+    }
+
+    #[test]
+    fn test_decoded_value() {
+        let test_byte = 0b10001001;
+
+        let bits = Bits {
+            usage: BitUsage::LITERAL,
+            size: 4,
+            shift: Some(3),
+            value: None,
+        };
+
+        assert_eq!(bits.decode_value(test_byte), 1);
     }
 }
