@@ -75,7 +75,9 @@ fn main() {
     let disassembled_instructions =
         disassemble_bytes_in(buffer).expect("Disassembly of Instructions failed");
 
+    println!("bits 16");
+
     for instruction in disassembled_instructions {
-        println!("{:?}", instruction);
+        println!("{}", instruction);
     }
 }

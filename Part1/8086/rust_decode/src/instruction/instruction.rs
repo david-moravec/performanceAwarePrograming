@@ -1,5 +1,6 @@
 use super::operand::{Operand, OperandTypeError};
 use crate::assembled_instruction::*;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum DecodingError {
@@ -142,6 +143,23 @@ impl Instruction {
     }
 }
 
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let src: &Operand;
+        let dst: &Operand;
+
+        if self.flags & BitFlag::D == BitFlag::D {
+            src = self.rm.as_ref().unwrap();
+            dst = self.reg.as_ref().unwrap();
+        } else {
+            src = self.reg.as_ref().unwrap();
+            dst = self.rm.as_ref().unwrap();
+        };
+
+        write!(f, "{} {}, {}", self.operation, dst, src)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::instruction::operand::{Displacement, OperandType, Size};
@@ -196,5 +214,15 @@ mod test {
             rm_type,
             OperandType::MEMORY(Displacement::YES(Size::WORD))
         ));
+    }
+
+    #[test]
+    fn test_instruction_display() {
+        let mut instr = Instruction::new(TEST_INSTRUCTION.to_be_bytes()[0]).unwrap();
+        instr
+            .continue_disassembly(TEST_INSTRUCTION.to_be_bytes()[1])
+            .unwrap();
+
+        assert_eq!(format!("{}", instr), "mov bx, cx")
     }
 }
