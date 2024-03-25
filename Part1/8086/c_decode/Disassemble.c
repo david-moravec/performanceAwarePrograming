@@ -142,8 +142,6 @@ static void disassemble_0_byte(const BYTE byte, DisassembledInstruction* dis_ins
         dis_instr->opcode = opcode;
         dis_instr->d = byte & D6;
         dis_instr->w = byte & W6;
-
-        printf("byte %d\nd %d\nw %d\n", byte, dis_instr->d, dis_instr->w);
     }
 
 }
@@ -270,10 +268,9 @@ void disassemble_binary_file(FILE* f) {
             disassemble_rest_of_bytes(buffer, &dis_instr);
         }
 
-        // if (opcode_is_valid(dis_instr.opcode)) {
-        //     printf("%s\n", disassambled_instruction_to_str(&dis_instr));
-        // }
-        printf("%s\n", disassambled_instruction_to_str(&dis_instr));
+        if (opcode_is_valid(dis_instr.opcode)) {
+             printf("%s\n", disassambled_instruction_to_str(&dis_instr));
+        }
     }
 }
 
