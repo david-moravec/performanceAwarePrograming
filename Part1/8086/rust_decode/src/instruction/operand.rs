@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt};
 
-use crate::assembled_instruction::BitFlag;
+use crate::assembled_instruction::{BitFlag, BitOrder};
+use crate::instruction::instruction::DecodingError;
 
 #[derive(Debug)]
 pub enum OperandToStrError {
@@ -53,9 +54,11 @@ impl OperandType {
 
                 match displacement {
                     Displacement::NO => Ok(format!("[{}]", eff_addr)),
-                    Displacement::YES(_) => {
-                        Ok(format!("[{}{:+}]", eff_addr, displacement_value.unwrap()))
-                    }
+                    Displacement::YES(_) => Ok(format!(
+                        "[{}{:+}]",
+                        eff_addr,
+                        displacement_value.expect("Displacement should have value")
+                    )),
                 }
             }
             Self::IMMEDIATE(_) => Ok("Imm".to_string()),
@@ -210,6 +213,38 @@ impl Operand {
             displacement: None,
             data: None,
         })
+    }
+
+    pub fn set_data(&mut self, data_decoded: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
+        match bit_order {
+            BitOrder::LOW => match self.data {
+                Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
+                None => Ok(self.data = Some(data_decoded.into())),
+            },
+            BitOrder::HIGH => match self.data {
+                None => Err(DecodingError::FieldNotYetDecodedError),
+                Some(data) => Ok(self.data = Some(data & (data_decoded as u16) << 8)),
+            },
+        }
+    }
+
+    pub fn set_displacement(
+        &mut self,
+        displacement_decoded: u8,
+        bit_order: BitOrder,
+    ) -> Result<(), DecodingError> {
+        match bit_order {
+            BitOrder::LOW => match self.displacement {
+                Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
+                None => Ok(self.displacement = Some(displacement_decoded.into())),
+            },
+            BitOrder::HIGH => match self.displacement {
+                None => Err(DecodingError::FieldNotYetDecodedError),
+                Some(data) => {
+                    Ok(self.displacement = Some(data | (displacement_decoded as u16) << 8))
+                }
+            },
+        }
     }
 }
 

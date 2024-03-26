@@ -204,7 +204,13 @@ use Operation::*;
 
 lazy_static! {
     static ref INSTRUCTION_TABLE: [AssembledInstruction; 3] = [
-        INSTR!(MOV, [Bits::literal(0b100010, 6), D, W], [MOD, REG, RM]),
+        INSTR!(
+            MOV,
+            [Bits::literal(0b100010, 6), D, W],
+            [MOD, REG, RM],
+            [DISP_LO],
+            [DISP_HI]
+        ),
         INSTR!(
             MOV,
             [Bits::literal(0b1011, 4), W, REG],

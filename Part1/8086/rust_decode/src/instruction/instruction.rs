@@ -1,5 +1,6 @@
-use super::operand::{Operand, OperandTypeError};
+use super::operand::{Operand, OperandError, OperandType, OperandTypeError};
 use crate::assembled_instruction::*;
+use core::panic;
 use std::fmt;
 
 #[derive(Debug)]
@@ -64,10 +65,6 @@ impl Instruction {
         }
     }
 
-    pub fn is_finished(&self) -> bool {
-        self.rm.is_some() & self.reg.is_some()
-    }
-
     pub fn additional_byte_count(&self) -> u8 {
         self.rm
             .as_ref()
@@ -87,7 +84,6 @@ impl Instruction {
     }
 
     pub fn new(byte: u8) -> Result<Self, DecodingError> {
-        let a = byte.to_be_bytes().to_vec();
         let ass_instr = get_assembled_instruction(byte)?;
         let first_byte: Byte = ass_instr.bytes[0].unwrap();
 
@@ -157,8 +153,95 @@ impl Instruction {
         Ok(self.additional_byte_count().into())
     }
 
-    pub fn finalize_disassembly(&mut self, byte: Vec<u8>) -> Result<(), DecodingError> {
+    pub fn finalize_disassembly(&mut self, bytes_given: Vec<u8>) -> Result<(), DecodingError> {
+        let instruction_bytes = self.ass_instr.bytes.clone();
+
+        for (byte_given, byte_expected_opt) in bytes_given.iter().zip(instruction_bytes[2..].iter())
+        {
+            for bits in byte_expected_opt
+                .expect("More bytes given than expected")
+                .bits
+                .iter()
+                .flatten()
+            {
+                let decoded_value = bits.decode_value(*byte_given);
+
+                match bits.usage {
+                    BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order)?,
+                    BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order)?,
+                    u => return Err(
+                        DecodingError::InvalidBitUsageError(
+                            format!(
+                            "Invalid BitUsage {:?}\nOnly data or displacement expctded on rest of bytes", u
+                            )
+                        )
+                    ),
+                };
+            }
+        }
         Ok(())
+    }
+
+    fn set_displacement(
+        &mut self,
+        displacement_decoded: u8,
+        bit_order: BitOrder,
+    ) -> Result<(), DecodingError> {
+        let rm = self
+            .rm
+            .as_mut()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+        let reg = self
+            .reg
+            .as_mut()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+
+        let rm_type = rm
+            .operand_type
+            .as_ref()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+        let reg_type = reg
+            .operand_type
+            .as_ref()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+
+        match (rm_type, reg_type) {
+            (OperandType::MEMORY(_), OperandType::MEMORY(_)) => {
+                panic!("Both operands are memory, aborting")
+            }
+            (OperandType::MEMORY(_), _) => rm.set_displacement(displacement_decoded, bit_order),
+            (_, OperandType::MEMORY(_)) => reg.set_displacement(displacement_decoded, bit_order),
+            (_, _) => panic!("No opearnds are memory cannot set displacement"),
+        }
+    }
+
+    fn set_data(&mut self, data: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
+        let rm = self
+            .rm
+            .as_mut()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+        let reg = self
+            .reg
+            .as_mut()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+
+        let rm_type = rm
+            .operand_type
+            .as_ref()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+        let reg_type = reg
+            .operand_type
+            .as_ref()
+            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+
+        match (rm_type, reg_type) {
+            (OperandType::IMMEDIATE(_), OperandType::IMMEDIATE(_)) => {
+                panic!("Both operands are immediate, aborting")
+            }
+            (OperandType::IMMEDIATE(_), _) => rm.set_data(data, bit_order),
+            (_, OperandType::IMMEDIATE(_)) => reg.set_data(data, bit_order),
+            (_, _) => panic!("No opearnds are immediate cannot set data"),
+        }
     }
 }
 

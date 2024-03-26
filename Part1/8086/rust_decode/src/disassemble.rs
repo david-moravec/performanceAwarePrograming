@@ -35,14 +35,10 @@ pub fn disassemble_instruction(
     let mut instr = Instruction::new(buffer.next_byte()?)?;
     let mut bytes_processed: usize = 1;
 
-    if instr.is_finished() {
-        return Ok((instr, bytes_processed));
-    }
-
     let n_of_bytes_needed = instr.continue_disassembly(buffer.next_byte()?)?;
     bytes_processed += 1;
 
-    if instr.is_finished() {
+    if n_of_bytes_needed == 0 {
         return Ok((instr, bytes_processed));
     }
 
@@ -83,5 +79,21 @@ mod test {
 
         assert_eq!(format!("{}", instruction), "mov al, [bx + si]");
         assert_eq!(bytes_processed, 2);
+    }
+
+    #[test]
+    fn test_memory_mode_instruction_displacement() {
+        let instr: u32 = 0x8A808713;
+
+        let mut buffer = InstructionBuffer {
+            buf: instr.to_be_bytes().to_vec(),
+            last_read: 0,
+            bytes_loaded: 4,
+        };
+
+        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
+
+        assert_eq!(format!("{}", instruction), "mov al, [bx + si+4999]");
+        assert_eq!(bytes_processed, 4);
     }
 }
