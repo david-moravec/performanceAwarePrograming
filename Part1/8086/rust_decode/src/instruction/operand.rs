@@ -4,7 +4,8 @@ use crate::assembled_instruction::BitFlag;
 
 #[derive(Debug)]
 pub enum OperandToStrError {
-    WrongRegisterValueError,
+    RegisterValueError,
+    EffectiveAddrValueError,
 }
 
 #[derive(Debug)]
@@ -33,14 +34,39 @@ pub enum OperandType {
 }
 
 impl OperandType {
-    fn to_str(&self, value: u8) -> Result<String, OperandToStrError> {
+    fn to_str(
+        &self,
+        value: u8,
+        displacement_value: Option<u16>,
+        data: Option<u16>,
+    ) -> Result<String, OperandToStrError> {
         match self {
             Self::REGISTER(size) => Ok(reg_encoding_table(*size)
                 .get(&value)
-                .ok_or(OperandToStrError::WrongRegisterValueError)?
+                .ok_or(OperandToStrError::RegisterValueError)?
                 .to_string()),
-            Self::MEMORY(_) => Ok("mem".to_string()),
-            Self::IMMEDIATE(_) => Ok("mem".to_string()),
+            Self::MEMORY(displacement) => {
+                let eff_addr = EFFECTIVE_ADDR
+                    .get(&value)
+                    .ok_or(OperandToStrError::EffectiveAddrValueError)?
+                    .to_string();
+
+                match displacement {
+                    Displacement::NO => Ok(format!("[{}]", eff_addr)),
+                    Displacement::YES(_) => {
+                        Ok(format!("[{}{:+}]", eff_addr, displacement_value.unwrap()))
+                    }
+                }
+            }
+            Self::IMMEDIATE(_) => Ok("Imm".to_string()),
+        }
+    }
+
+    pub fn additional_byte_count(&self) -> u8 {
+        match self {
+            OperandType::REGISTER(_) => 0,
+            OperandType::IMMEDIATE(size) => size.byte_count(),
+            OperandType::MEMORY(displacement) => displacement.byte_count(),
         }
     }
 }
@@ -66,6 +92,16 @@ lazy_static! {
         (0b110, "dh"),
         (0b111, "bh"),
     ]);
+    static ref EFFECTIVE_ADDR: HashMap<u8, &'static str> = HashMap::from([
+        (0b000, "bx + si"),
+        (0b001, "bx + di"),
+        (0b010, "bp + si"),
+        (0b011, "bp + di"),
+        (0b100, "si"),
+        (0b101, "di"),
+        (0b110, "DIR ADDR"),
+        (0b111, "bx"),
+    ]);
 }
 
 fn reg_encoding_table(size: Size) -> &'static HashMap<u8, &'static str> {
@@ -81,6 +117,15 @@ pub enum Displacement {
     YES(Size),
 }
 
+impl Displacement {
+    pub fn byte_count(&self) -> u8 {
+        match self {
+            Self::NO => 0,
+            Self::YES(size) => size.byte_count(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Size {
     BYTE,
@@ -93,6 +138,13 @@ impl Size {
             Self::WORD
         } else {
             Self::BYTE
+        }
+    }
+
+    pub fn byte_count(&self) -> u8 {
+        match self {
+            Self::BYTE => 1,
+            Self::WORD => 2,
         }
     }
 }
@@ -163,14 +215,13 @@ impl Operand {
 
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.operand_type
-                .as_ref()
-                .unwrap()
-                .to_str(self.value.unwrap())
-                .unwrap()
-        )
+        let operand_str: String = self
+            .operand_type
+            .as_ref()
+            .unwrap()
+            .to_str(self.value.unwrap(), self.displacement, self.data)
+            .unwrap();
+
+        write!(f, "{}", operand_str)
     }
 }

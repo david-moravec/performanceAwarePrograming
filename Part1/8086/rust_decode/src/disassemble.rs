@@ -33,7 +33,7 @@ pub fn disassemble_instruction(
     buffer: &mut InstructionBuffer,
 ) -> DisassemblyResult<(Instruction, usize)> {
     let mut instr = Instruction::new(buffer.next_byte()?)?;
-    let mut bytes_processed = 1;
+    let mut bytes_processed: usize = 1;
 
     if instr.is_finished() {
         return Ok((instr, bytes_processed));
@@ -46,7 +46,7 @@ pub fn disassemble_instruction(
         return Ok((instr, bytes_processed));
     }
 
-    instr.finalize_disassembly(buffer.next_n_bytes(n_of_bytes_needed)?)?;
+    instr.finalize_disassembly(buffer.next_n_bytes(n_of_bytes_needed.into())?)?;
     bytes_processed += n_of_bytes_needed;
 
     Ok((instr, bytes_processed))
@@ -63,4 +63,25 @@ pub fn disassemble_bytes_in(mut buffer: InstructionBuffer) -> DisassemblyResult<
     }
 
     Ok(instructions)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_memory_mode_instruction() {
+        let instr: u16 = 0x8A00;
+
+        let mut buffer = InstructionBuffer {
+            buf: instr.to_be_bytes().to_vec(),
+            last_read: 0,
+            bytes_loaded: 2,
+        };
+
+        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
+
+        assert_eq!(format!("{}", instruction), "mov al, [bx + si]");
+        assert_eq!(bytes_processed, 2);
+    }
 }

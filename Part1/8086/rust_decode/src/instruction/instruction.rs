@@ -68,7 +68,26 @@ impl Instruction {
         self.rm.is_some() & self.reg.is_some()
     }
 
+    pub fn additional_byte_count(&self) -> u8 {
+        self.rm
+            .as_ref()
+            .unwrap()
+            .operand_type
+            .as_ref()
+            .unwrap()
+            .additional_byte_count()
+            + self
+                .reg
+                .as_ref()
+                .unwrap()
+                .operand_type
+                .as_ref()
+                .unwrap()
+                .additional_byte_count()
+    }
+
     pub fn new(byte: u8) -> Result<Self, DecodingError> {
+        let a = byte.to_be_bytes().to_vec();
         let ass_instr = get_assembled_instruction(byte)?;
         let first_byte: Byte = ass_instr.bytes[0].unwrap();
 
@@ -135,7 +154,7 @@ impl Instruction {
         self.set_rm(rm, mode)?;
         self.set_reg(reg)?;
 
-        Ok(0)
+        Ok(self.additional_byte_count().into())
     }
 
     pub fn finalize_disassembly(&mut self, byte: Vec<u8>) -> Result<(), DecodingError> {

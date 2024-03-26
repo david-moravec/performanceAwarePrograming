@@ -237,9 +237,15 @@ mod tests {
 
     #[test]
     fn test_get_assembled_instruction() {
-        assert!(get_assembled_instruction(0b10001011).is_ok());
+        assert!(matches!(
+            get_assembled_instruction(0b10001011).unwrap().operation,
+            MOV
+        ));
         assert!(get_assembled_instruction(0b10110000).is_ok());
-        assert!(get_assembled_instruction(0b00000000).is_ok());
+        assert!(matches!(
+            get_assembled_instruction(0b00000000).unwrap().operation,
+            ADD
+        ));
         assert!(get_assembled_instruction(0b10000000).is_err());
     }
 
