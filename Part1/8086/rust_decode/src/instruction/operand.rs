@@ -37,18 +37,18 @@ pub enum OperandType {
 impl OperandType {
     fn to_str(
         &self,
-        value: u8,
+        value: Option<u8>,
         displacement_value: Option<u16>,
-        data: Option<u16>,
+        data: Option<i16>,
     ) -> Result<String, OperandToStrError> {
         match self {
             Self::REGISTER(size) => Ok(reg_encoding_table(*size)
-                .get(&value)
+                .get(&value.unwrap())
                 .ok_or(OperandToStrError::RegisterValueError)?
                 .to_string()),
             Self::MEMORY(displacement) => {
                 let eff_addr = EFFECTIVE_ADDR
-                    .get(&value)
+                    .get(&value.unwrap())
                     .ok_or(OperandToStrError::EffectiveAddrValueError)?
                     .to_string();
 
@@ -61,14 +61,16 @@ impl OperandType {
                     )),
                 }
             }
-            Self::IMMEDIATE(_) => Ok("Imm".to_string()),
+            Self::IMMEDIATE(_) => {
+                Ok(format!("{}", data.expect("Immediate must have data")).to_string())
+            }
         }
     }
 
     pub fn additional_byte_count(&self) -> u8 {
         match self {
             OperandType::REGISTER(_) => 0,
-            OperandType::IMMEDIATE(size) => size.byte_count(),
+            OperandType::IMMEDIATE(size) => size.byte_count() - 1,
             OperandType::MEMORY(displacement) => displacement.byte_count(),
         }
     }
@@ -102,7 +104,7 @@ lazy_static! {
         (0b011, "bp + di"),
         (0b100, "si"),
         (0b101, "di"),
-        (0b110, "DIR ADDR"),
+        (0b110, "bp"),
         (0b111, "bx"),
     ]);
 }
@@ -177,7 +179,7 @@ pub struct Operand {
     pub operand_type: Option<OperandType>,
     pub value: Option<u8>,
     pub displacement: Option<u16>,
-    pub data: Option<u16>,
+    pub data: Option<i16>,
 }
 
 impl Operand {
@@ -188,6 +190,15 @@ impl Operand {
             displacement: None,
             data: None,
         }
+    }
+
+    pub fn immediate(data: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
+        Ok(Operand {
+            operand_type: Some(OperandType::IMMEDIATE(Size::new(flags))),
+            value: None,
+            displacement: None,
+            data: Some(data.into()),
+        })
     }
 
     pub fn rm(value: u8, mode: Option<u8>, flags: BitFlag) -> Result<Self, OperandTypeError> {
@@ -223,7 +234,7 @@ impl Operand {
             },
             BitOrder::HIGH => match self.data {
                 None => Err(DecodingError::FieldNotYetDecodedError),
-                Some(data) => Ok(self.data = Some(data & (data_decoded as u16) << 8)),
+                Some(data) => Ok(self.data = Some(data | (data_decoded as i16) << 8)),
             },
         }
     }
@@ -254,7 +265,7 @@ impl fmt::Display for Operand {
             .operand_type
             .as_ref()
             .unwrap()
-            .to_str(self.value.unwrap(), self.displacement, self.data)
+            .to_str(self.value, self.displacement, self.data)
             .unwrap();
 
         write!(f, "{}", operand_str)

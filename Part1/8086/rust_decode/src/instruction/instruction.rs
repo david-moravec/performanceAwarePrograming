@@ -55,6 +55,16 @@ impl Instruction {
         }
     }
 
+    pub fn set_immediate(&mut self, data: Option<u8>) -> Result<(), DecodingError> {
+        match data {
+            Some(data) => match &self.rm {
+                Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
+                None => Ok(self.rm = Some(Operand::immediate(data, self.flags)?)),
+            },
+            None => Ok(()),
+        }
+    }
+
     pub fn set_reg(&mut self, value: Option<u8>) -> Result<(), DecodingError> {
         match value {
             Some(val) => match &self.reg {
@@ -126,6 +136,7 @@ impl Instruction {
         let mut reg: Option<u8> = None;
         let mut mode: Option<u8> = None;
         let mut rm: Option<u8> = None;
+        let mut data: Option<u8> = None;
 
         // In First byte only flags, reg, and Literal bits are expeected
         for bits in second_byte.bits.iter().flatten() {
@@ -136,11 +147,12 @@ impl Instruction {
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
                 BitUsage::REG => Ok(reg = Some(decoded_value)),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
+                BitUsage::Data(bit_order) => Ok(data = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
                 u => return Err(
                     DecodingError::InvalidBitUsageError(
                         format!(
-                        "Invalid BitUsage {:?}\nOnly Literal, Flag and Reg Field are expected in first byte", u
+                        "Invalid BitUsage {:?}\nOnly Literal, Flag, Reg, Rm, Mod fields are expected in second byte", u
                     )
                     )
                 ),
@@ -149,6 +161,7 @@ impl Instruction {
 
         self.set_rm(rm, mode)?;
         self.set_reg(reg)?;
+        self.set_immediate(data)?;
 
         Ok(self.additional_byte_count().into())
     }
@@ -172,7 +185,7 @@ impl Instruction {
                     u => return Err(
                         DecodingError::InvalidBitUsageError(
                             format!(
-                            "Invalid BitUsage {:?}\nOnly data or displacement expctded on rest of bytes", u
+                            "Invalid BitUsage {:?}\nOnly Data or Displacement fields expctded on rest of bytes", u
                             )
                         )
                     ),
@@ -187,23 +200,13 @@ impl Instruction {
         displacement_decoded: u8,
         bit_order: BitOrder,
     ) -> Result<(), DecodingError> {
-        let rm = self
-            .rm
-            .as_mut()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
-        let reg = self
-            .reg
-            .as_mut()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
-
+        let rm = self.rm.as_mut().expect("RM must be set");
+        let reg = self.reg.as_mut().expect("Reg Must be set");
         let rm_type = rm
             .operand_type
             .as_ref()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
-        let reg_type = reg
-            .operand_type
-            .as_ref()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+            .expect("operand type must be known");
+        let reg_type = reg.operand_type.as_ref().unwrap();
 
         match (rm_type, reg_type) {
             (OperandType::MEMORY(_), OperandType::MEMORY(_)) => {
@@ -216,23 +219,13 @@ impl Instruction {
     }
 
     fn set_data(&mut self, data: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
-        let rm = self
-            .rm
-            .as_mut()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
-        let reg = self
-            .reg
-            .as_mut()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
-
+        let rm = self.rm.as_mut().expect("RM must be set");
+        let reg = self.reg.as_mut().expect("Reg Must be set");
         let rm_type = rm
             .operand_type
             .as_ref()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
-        let reg_type = reg
-            .operand_type
-            .as_ref()
-            .ok_or(DecodingError::FieldNotYetDecodedError)?;
+            .expect("operand type must be known");
+        let reg_type = reg.operand_type.as_ref().unwrap();
 
         match (rm_type, reg_type) {
             (OperandType::IMMEDIATE(_), OperandType::IMMEDIATE(_)) => {
@@ -250,12 +243,18 @@ impl fmt::Display for Instruction {
         let src: &Operand;
         let dst: &Operand;
 
+        let rm = self.rm.as_ref().unwrap();
+        let reg = self.reg.as_ref().unwrap();
+
         if self.flags & BitFlag::D == BitFlag::D {
-            src = self.rm.as_ref().unwrap();
-            dst = self.reg.as_ref().unwrap();
+            src = rm;
+            dst = reg;
+        } else if matches!(rm.operand_type.as_ref().unwrap(), OperandType::IMMEDIATE(_)) {
+            src = rm;
+            dst = reg;
         } else {
-            src = self.reg.as_ref().unwrap();
-            dst = self.rm.as_ref().unwrap();
+            src = reg;
+            dst = rm;
         };
 
         write!(f, "{} {}, {}", self.operation, dst, src)

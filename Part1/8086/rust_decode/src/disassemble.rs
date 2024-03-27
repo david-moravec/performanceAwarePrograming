@@ -96,4 +96,20 @@ mod test {
         assert_eq!(format!("{}", instruction), "mov al, [bx + si+4999]");
         assert_eq!(bytes_processed, 4);
     }
+
+    #[test]
+    fn test_immediate_to_memory() {
+        let mut buffer = InstructionBuffer {
+            buf: [0xBA, 0x6C, 0x0F].to_vec(),
+            last_read: 0,
+            bytes_loaded: 3,
+        };
+
+        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
+
+        println!("{:?}", instruction);
+
+        assert_eq!(format!("{}", instruction), "mov dx, 3948");
+        assert_eq!(bytes_processed, 3);
+    }
 }
