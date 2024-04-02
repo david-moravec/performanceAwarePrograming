@@ -28,83 +28,24 @@ impl From<OperandTypeError> for DecodingError {
 #[derive(Debug)]
 pub struct Instruction {
     operation: Operation,
-    reg: Option<Operand>,
-    rm: Option<Operand>,
+    operand_a: Option<Operand>,
+    operand_b: Option<Operand>,
     flags: BitFlag,
     ass_instr: AssembledInstruction,
 }
 
 impl Instruction {
-    pub fn set_flag(&mut self, flag: BitFlag, value: u8) -> Result<(), DecodingError> {
-        if value == 1 {
-            Ok(self.flags = self.flags | flag)
-        } else if value == 0 {
-            Ok(())
-        } else {
-            Err(DecodingError::UnexpectedDecodedValueError(value))
-        }
-    }
-
-    pub fn set_rm(&mut self, value: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
-        match value {
-            Some(val) => match &self.rm {
-                Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
-                None => Ok(self.rm = Some(Operand::rm(val, mode, self.flags)?)),
-            },
-            None => Ok(()),
-        }
-    }
-
-    pub fn set_immediate(&mut self, data: Option<u8>) -> Result<(), DecodingError> {
-        match data {
-            Some(data) => match &self.rm {
-                Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
-                None => Ok(self.rm = Some(Operand::immediate(data, self.flags)?)),
-            },
-            None => Ok(()),
-        }
-    }
-
-    pub fn set_reg(&mut self, value: Option<u8>) -> Result<(), DecodingError> {
-        match value {
-            Some(val) => match &self.reg {
-                Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
-                None => Ok(self.reg = Some(Operand::reg(val, self.flags)?)),
-            },
-            None => Ok(()),
-        }
-    }
-
-    pub fn additional_byte_count(&self) -> u8 {
-        self.rm
-            .as_ref()
-            .unwrap()
-            .operand_type
-            .as_ref()
-            .unwrap()
-            .additional_byte_count()
-            + self
-                .reg
-                .as_ref()
-                .unwrap()
-                .operand_type
-                .as_ref()
-                .unwrap()
-                .additional_byte_count()
-    }
-
     pub fn new(byte: u8) -> Result<Self, DecodingError> {
         let ass_instr = get_assembled_instruction(byte)?;
         let first_byte: Byte = ass_instr.bytes[0].unwrap();
 
         let mut instr = Instruction {
             operation: ass_instr.operation,
-            reg: None,
-            rm: None,
+            operand_a: None,
+            operand_b: None,
             flags: BitFlag::NOTHING,
             ass_instr,
         };
-        let mut reg: Option<u8> = None;
 
         // In First byte only flags, reg, and Literal bits are expeected
         for bits in first_byte.bits.iter().flatten() {
@@ -113,7 +54,7 @@ impl Instruction {
             match bits.usage {
                 BitUsage::LITERAL => Ok(()),
                 BitUsage::Flag(flag) => instr.set_flag(flag, decoded_value),
-                BitUsage::REG => Ok(reg = Some(decoded_value)),
+                BitUsage::REG => Ok(instr.set_operand_a(decoded_value)?),
                 u => Err(
                     DecodingError::InvalidBitUsageError(
                         format!(
@@ -124,8 +65,6 @@ impl Instruction {
             }?;
         }
 
-        instr.set_reg(reg)?;
-
         Ok(instr)
     }
 
@@ -133,21 +72,19 @@ impl Instruction {
         let second_byte: Byte = self.ass_instr.bytes[1]
             .ok_or(DecodingError::InvalidBitUsageError("Exp".to_string()))?;
 
-        let mut reg: Option<u8> = None;
         let mut mode: Option<u8> = None;
         let mut rm: Option<u8> = None;
-        let mut data: Option<u8> = None;
 
         // In First byte only flags, reg, and Literal bits are expeected
         for bits in second_byte.bits.iter().flatten() {
-            let decoded_value: u8 = bits.decode_value(byte);
+            let decoded_value = bits.decode_value(byte);
 
             match bits.usage {
                 BitUsage::LITERAL => continue,
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
-                BitUsage::REG => Ok(reg = Some(decoded_value)),
+                BitUsage::REG => Ok(self.set_operand_a(decoded_value)?),
+                BitUsage::Data(bit_order) => Ok(self.set_data(decoded_value, bit_order).unwrap()),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
-                BitUsage::Data(bit_order) => Ok(data = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
                 u => return Err(
                     DecodingError::InvalidBitUsageError(
@@ -159,9 +96,7 @@ impl Instruction {
             }?;
         }
 
-        self.set_rm(rm, mode)?;
-        self.set_reg(reg)?;
-        self.set_immediate(data)?;
+        self.set_operand_b(rm, mode)?;
 
         Ok(self.additional_byte_count().into())
     }
@@ -180,7 +115,7 @@ impl Instruction {
                 let decoded_value = bits.decode_value(*byte_given);
 
                 match bits.usage {
-                    BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order)?,
+                    BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order).unwrap(),
                     BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order)?,
                     u => return Err(
                         DecodingError::InvalidBitUsageError(
@@ -195,44 +130,94 @@ impl Instruction {
         Ok(())
     }
 
+    fn set_flag(&mut self, flag: BitFlag, value: u8) -> Result<(), DecodingError> {
+        if value == 1 {
+            Ok(self.flags = self.flags | flag)
+        } else if value == 0 {
+            Ok(())
+        } else {
+            Err(DecodingError::UnexpectedDecodedValueError(value))
+        }
+    }
+
+    fn set_operand_b(&mut self, rm: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
+        match rm {
+            Some(val) => match &self.operand_b {
+                Some(_) => panic!(),
+                None => Ok(self.operand_b = Some(Operand::rm(val, mode, self.flags)?)),
+            },
+            None => Ok(()),
+        }
+    }
+
+    fn set_operand_a(&mut self, reg: u8) -> Result<(), DecodingError> {
+        match &self.operand_a {
+            Some(_) => panic!(),
+            None => Ok(self.operand_a = Some(Operand::reg(reg, self.flags)?)),
+        }
+    }
+
+    fn additional_byte_count(&self) -> u8 {
+        self.operand_b
+            .as_ref()
+            .expect("Operand B must be set")
+            .operand_type
+            .as_ref()
+            .unwrap()
+            .additional_byte_count()
+            + self
+                .operand_a
+                .as_ref()
+                .expect("Operand must be set")
+                .operand_type
+                .as_ref()
+                .unwrap()
+                .additional_byte_count()
+    }
+
     fn set_displacement(
         &mut self,
         displacement_decoded: u8,
         bit_order: BitOrder,
     ) -> Result<(), DecodingError> {
-        let rm = self.rm.as_mut().expect("RM must be set");
-        let reg = self.reg.as_mut().expect("Reg Must be set");
-        let rm_type = rm
+        let operand_b = self.operand_b.as_mut().expect("Operand must be set");
+        let operand_a = self.operand_a.as_mut().expect("Operand Must be set");
+        let operand_b_type = operand_b
             .operand_type
             .as_ref()
             .expect("operand type must be known");
-        let reg_type = reg.operand_type.as_ref().unwrap();
+        let operand_a_type = operand_a.operand_type.as_ref().unwrap();
 
-        match (rm_type, reg_type) {
+        match (operand_b_type, operand_a_type) {
             (OperandType::MEMORY(_), OperandType::MEMORY(_)) => {
                 panic!("Both operands are memory, aborting")
             }
-            (OperandType::MEMORY(_), _) => rm.set_displacement(displacement_decoded, bit_order),
-            (_, OperandType::MEMORY(_)) => reg.set_displacement(displacement_decoded, bit_order),
+            (OperandType::MEMORY(_), _) => {
+                operand_b.set_displacement(displacement_decoded, bit_order)
+            }
+            (_, OperandType::MEMORY(_)) => {
+                operand_a.set_displacement(displacement_decoded, bit_order)
+            }
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
         }
     }
 
     fn set_data(&mut self, data: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
-        let rm = self.rm.as_mut().expect("RM must be set");
-        let reg = self.reg.as_mut().expect("Reg Must be set");
-        let rm_type = rm
-            .operand_type
-            .as_ref()
-            .expect("operand type must be known");
-        let reg_type = reg.operand_type.as_ref().unwrap();
+        match (&self.operand_a, &self.operand_b) {
+            (Some(_), None) => self.operand_b = Some(Operand::immediate(None, self.flags)?),
+            (None, Some(_)) => self.operand_a = Some(Operand::immediate(None, self.flags)?),
+            _ => (),
+        }
 
-        match (rm_type, reg_type) {
-            (OperandType::IMMEDIATE(_), OperandType::IMMEDIATE(_)) => {
-                panic!("Both operands are immediate, aborting")
-            }
-            (OperandType::IMMEDIATE(_), _) => rm.set_data(data, bit_order),
-            (_, OperandType::IMMEDIATE(_)) => reg.set_data(data, bit_order),
+        let operand_b = self.operand_b.as_mut().expect("Operand must be set");
+        let operand_a = self.operand_a.as_mut().expect("Operand Must be set");
+        let operand_b_type = operand_b.operand_type.as_ref().unwrap();
+        let operand_a_type = operand_a.operand_type.as_ref().unwrap();
+
+        match (operand_a_type, operand_b_type) {
+            (OperandType::IMMEDIATE(_), OperandType::IMMEDIATE(_)) => panic!(),
+            (OperandType::IMMEDIATE(_), _) => Ok(operand_a.set_data(data, bit_order).unwrap()),
+            (_, OperandType::IMMEDIATE(_)) => Ok(operand_b.set_data(data, bit_order).unwrap()),
             (_, _) => panic!("No opearnds are immediate cannot set data"),
         }
     }
@@ -243,8 +228,8 @@ impl fmt::Display for Instruction {
         let src: &Operand;
         let dst: &Operand;
 
-        let rm = self.rm.as_ref().unwrap();
-        let reg = self.reg.as_ref().unwrap();
+        let rm = self.operand_b.as_ref().unwrap();
+        let reg = self.operand_a.as_ref().unwrap();
 
         if self.flags & BitFlag::D == BitFlag::D {
             src = rm;
@@ -292,11 +277,11 @@ mod test {
             .unwrap();
 
         assert!(matches!(
-            instr.reg.unwrap().operand_type.unwrap(),
+            instr.operand_a.unwrap().operand_type.unwrap(),
             OperandType::REGISTER(Size::WORD)
         ));
         assert!(matches!(
-            instr.rm.unwrap().operand_type.unwrap(),
+            instr.operand_b.unwrap().operand_type.unwrap(),
             OperandType::REGISTER(Size::WORD)
         ));
 
@@ -307,10 +292,16 @@ mod test {
             .unwrap();
 
         assert!(matches!(
-            instr.reg.unwrap().operand_type.unwrap(),
+            instr.operand_a.unwrap().operand_type.unwrap(),
             OperandType::REGISTER(Size::WORD)
         ));
-        let rm_type = instr.rm.as_ref().unwrap().operand_type.as_ref().unwrap();
+        let rm_type = instr
+            .operand_b
+            .as_ref()
+            .unwrap()
+            .operand_type
+            .as_ref()
+            .unwrap();
         assert!(matches!(
             rm_type,
             OperandType::MEMORY(Displacement::YES(Size::WORD))

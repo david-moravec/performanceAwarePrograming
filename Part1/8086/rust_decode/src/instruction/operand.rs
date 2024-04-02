@@ -192,12 +192,12 @@ impl Operand {
         }
     }
 
-    pub fn immediate(data: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
+    pub fn immediate(data: Option<i16>, flags: BitFlag) -> Result<Self, OperandTypeError> {
         Ok(Operand {
             operand_type: Some(OperandType::IMMEDIATE(Size::new(flags))),
             value: None,
             displacement: None,
-            data: Some(data.into()),
+            data,
         })
     }
 
