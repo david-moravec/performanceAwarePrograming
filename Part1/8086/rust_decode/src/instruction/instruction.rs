@@ -115,7 +115,7 @@ impl Instruction {
                 let decoded_value = bits.decode_value(*byte_given);
 
                 match bits.usage {
-                    BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order).unwrap(),
+                    BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order)?,
                     BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order)?,
                     u => return Err(
                         DecodingError::InvalidBitUsageError(
@@ -141,12 +141,13 @@ impl Instruction {
     }
 
     fn set_operand_b(&mut self, rm: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
-        match rm {
-            Some(val) => match &self.operand_b {
+        match (rm, mode) {
+            (None, None) => Ok(()),
+            (Some(rm), Some(mode)) => match &self.operand_b {
                 Some(_) => panic!(),
-                None => Ok(self.operand_b = Some(Operand::rm(val, mode, self.flags)?)),
+                None => Ok(self.operand_b = Some(Operand::rm(rm, mode, self.flags)?)),
             },
-            None => Ok(()),
+            _ => panic!("Both RM and mode needs to be specifed"),
         }
     }
 

@@ -201,16 +201,9 @@ impl Operand {
         })
     }
 
-    pub fn rm(value: u8, mode: Option<u8>, flags: BitFlag) -> Result<Self, OperandTypeError> {
-        let operand_type_opt: Option<OperandType>;
-
-        match mode {
-            Some(value) => operand_type_opt = Some(OperandType::try_from_mod(value, flags)?),
-            None => operand_type_opt = None,
-        }
-
+    pub fn rm(value: u8, mode: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
         Ok(Operand {
-            operand_type: operand_type_opt,
+            operand_type: Some(OperandType::try_from_mod(mode, flags)?),
             value: Some(value),
             displacement: None,
             data: None,
