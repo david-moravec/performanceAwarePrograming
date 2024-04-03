@@ -113,19 +113,20 @@ mod test {
         assert_eq!(bytes_processed, 3);
     }
 
-    // #[test]
-    // fn test_immediate_to_memory() {
-    //     let mut buffer = InstructionBuffer {
-    //         buf: [0xC6, 0x43, 0x00, 0x07].to_vec(),
-    //         last_read: 0,
-    //         bytes_loaded: 4,
-    //     };
-    //
-    //     let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
-    //
-    //     println!("{:?}", instruction);
-    //
-    //     assert_eq!(format!("{}", instruction), "mov [bp + di], 7");
-    //     assert_eq!(bytes_processed, 4);
-    // }
+    #[test]
+    fn test_immediate_to_memory() {
+        let mut buffer = InstructionBuffer {
+            buf: [0xC6, 0x03, 0x07].to_vec(),
+            last_read: 0,
+            bytes_loaded: 3,
+        };
+
+        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
+
+        println!("bytes processed {:}", bytes_processed);
+        println!("{:?}", instruction);
+
+        assert_eq!(format!("{}", instruction), "mov [bp + di], byte 7");
+        assert_eq!(bytes_processed, 3);
+    }
 }

@@ -1,7 +1,7 @@
-use super::operand::{Operand, OperandError, OperandType, OperandTypeError};
+use super::operand::{Displacement, Operand, OperandType, OperandTypeError, Size};
 use crate::assembled_instruction::*;
 use core::panic;
-use std::fmt;
+use std::{fmt, iter::IntoIterator};
 
 #[derive(Debug)]
 pub enum DecodingError {
@@ -54,7 +54,7 @@ impl Instruction {
             match bits.usage {
                 BitUsage::LITERAL => Ok(()),
                 BitUsage::Flag(flag) => instr.set_flag(flag, decoded_value),
-                BitUsage::REG => Ok(instr.set_operand_a(decoded_value)?),
+                BitUsage::REG => instr.set_operand_a(decoded_value),
                 u => Err(
                     DecodingError::InvalidBitUsageError(
                         format!(
@@ -80,10 +80,10 @@ impl Instruction {
             let decoded_value = bits.decode_value(byte);
 
             match bits.usage {
-                BitUsage::LITERAL => continue,
+                BitUsage::LITERAL => self.handle_literal(),
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
-                BitUsage::REG => Ok(self.set_operand_a(decoded_value)?),
-                BitUsage::Data(bit_order) => Ok(self.set_data(decoded_value, bit_order).unwrap()),
+                BitUsage::REG => self.set_operand_a(decoded_value),
+                BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
                 u => return Err(
@@ -101,30 +101,75 @@ impl Instruction {
         Ok(self.additional_byte_count().into())
     }
 
-    pub fn finalize_disassembly(&mut self, bytes_given: Vec<u8>) -> Result<(), DecodingError> {
-        let instruction_bytes = self.ass_instr.bytes.clone();
+    fn handle_literal(&mut self) -> Result<(), DecodingError> {
+        Ok(self.operand_a = Some(Operand::immediate(None, self.flags)?))
+    }
 
-        for (byte_given, byte_expected_opt) in bytes_given.iter().zip(instruction_bytes[2..].iter())
-        {
-            for bits in byte_expected_opt
-                .expect("More bytes given than expected")
-                .bits
-                .iter()
-                .flatten()
-            {
+    fn should_process_bits(&self, bits: Bits) -> bool {
+        match bits.usage {
+            BitUsage::Data(bit_order) => match bit_order {
+                BitOrder::LOW => true,
+                BitOrder::HIGH => self.flags & BitFlag::W == BitFlag::W,
+            },
+            BitUsage::Disp(bit_order) => {
+                let type_b = self
+                    .operand_b
+                    .as_ref()
+                    .unwrap()
+                    .operand_type
+                    .as_ref()
+                    .unwrap();
+
+                match type_b {
+                    OperandType::MEMORY(Displacement::NO) => false,
+                    OperandType::MEMORY(Displacement::YES(size)) => match bit_order {
+                        BitOrder::LOW => true,
+                        BitOrder::HIGH => matches!(size, Size::WORD),
+                    },
+                    _ => panic!("Expected only memory Operand"),
+                }
+            }
+            _ => true,
+        }
+    }
+
+    fn bytes_to_finalize(&self) -> Vec<Byte> {
+        let mut a: Vec<Byte> = vec![];
+
+        for byte in self.ass_instr.bytes[2..].into_iter() {
+            match byte {
+                Some(b) => {
+                    if self.should_process_bits(b.bits[0].unwrap()) {
+                        a.push(*b);
+                    }
+                }
+                None => (),
+            }
+        }
+
+        a
+    }
+
+    pub fn finalize_disassembly(&mut self, bytes_given: Vec<u8>) -> Result<(), DecodingError> {
+        let instruction_bytes = self.bytes_to_finalize();
+
+        for (byte_given, byte_expected) in bytes_given.iter().zip(instruction_bytes) {
+            for bits in byte_expected.bits.iter().flatten() {
                 let decoded_value = bits.decode_value(*byte_given);
 
-                match bits.usage {
-                    BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order)?,
-                    BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order)?,
-                    u => return Err(
-                        DecodingError::InvalidBitUsageError(
-                            format!(
-                            "Invalid BitUsage {:?}\nOnly Data or Displacement fields expctded on rest of bytes", u
+                if self.should_process_bits(*bits) {
+                    match bits.usage {
+                        BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order),
+                        BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order),
+                        u => Err(
+                            DecodingError::InvalidBitUsageError(
+                                format!(
+                                "Invalid BitUsage {:?}\nOnly Data or Displacement fields expctded on rest of bytes", u
+                                )
                             )
-                        )
-                    ),
-                };
+                        ),
+                    }?;
+                }
             }
         }
         Ok(())
@@ -159,21 +204,37 @@ impl Instruction {
     }
 
     fn additional_byte_count(&self) -> u8 {
-        self.operand_b
+        self.operand_a
             .as_ref()
-            .expect("Operand B must be set")
-            .operand_type
-            .as_ref()
+            .map(|op| op.n_bytes_needed())
             .unwrap()
-            .additional_byte_count()
             + self
-                .operand_a
+                .operand_b
                 .as_ref()
-                .expect("Operand must be set")
-                .operand_type
-                .as_ref()
+                .map(|op| op.n_bytes_needed())
                 .unwrap()
-                .additional_byte_count()
+    }
+
+    fn operands_sorted(&self) -> (&Operand, &Operand) {
+        let (dst, src): (&Operand, &Operand);
+
+        let op_a = self.operand_a.as_ref().unwrap();
+        let op_b = self.operand_b.as_ref().unwrap();
+
+        let b_type = op_b.operand_type.as_ref().unwrap();
+
+        if self.flags & BitFlag::D == BitFlag::D {
+            src = op_b;
+            dst = op_a;
+        } else if matches!(b_type, OperandType::IMMEDIATE(_)) {
+            src = op_b;
+            dst = op_a;
+        } else {
+            src = op_a;
+            dst = op_b;
+        };
+
+        (dst, src)
     }
 
     fn set_displacement(
@@ -207,6 +268,7 @@ impl Instruction {
         match (&self.operand_a, &self.operand_b) {
             (Some(_), None) => self.operand_b = Some(Operand::immediate(None, self.flags)?),
             (None, Some(_)) => self.operand_a = Some(Operand::immediate(None, self.flags)?),
+            (None, None) => self.operand_a = Some(Operand::immediate(None, self.flags)?),
             _ => (),
         }
 
@@ -226,24 +288,26 @@ impl Instruction {
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let src: &Operand;
-        let dst: &Operand;
+        let (dst, src) = self.operands_sorted();
 
-        let rm = self.operand_b.as_ref().unwrap();
-        let reg = self.operand_a.as_ref().unwrap();
+        let mut src_size: String = "".to_string();
+        let dst_size: String = "".to_string();
 
-        if self.flags & BitFlag::D == BitFlag::D {
-            src = rm;
-            dst = reg;
-        } else if matches!(rm.operand_type.as_ref().unwrap(), OperandType::IMMEDIATE(_)) {
-            src = rm;
-            dst = reg;
-        } else {
-            src = reg;
-            dst = rm;
+        match (
+            dst.operand_type.as_ref().unwrap(),
+            src.operand_type.as_ref().unwrap(),
+        ) {
+            (OperandType::MEMORY(_), OperandType::IMMEDIATE(size)) => {
+                src_size = format!("{:} ", size)
+            }
+            _ => (),
         };
 
-        write!(f, "{} {}, {}", self.operation, dst, src)
+        write!(
+            f,
+            "{} {}{}, {}{}",
+            self.operation, dst_size, dst, src_size, src
+        )
     }
 }
 

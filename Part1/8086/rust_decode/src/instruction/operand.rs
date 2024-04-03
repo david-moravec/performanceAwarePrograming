@@ -54,11 +54,15 @@ impl OperandType {
 
                 match displacement {
                     Displacement::NO => Ok(format!("[{}]", eff_addr)),
-                    Displacement::YES(_) => Ok(format!(
-                        "[{}{:+}]",
-                        eff_addr,
-                        displacement_value.expect("Displacement should have value")
-                    )),
+                    Displacement::YES(_) => {
+                        let disp_val = displacement_value.expect("Displacement should have value");
+
+                        if disp_val == 0 {
+                            Ok(format!("[{}]", eff_addr))
+                        } else {
+                            Ok(format!("[{}{:+}]", eff_addr, disp_val))
+                        }
+                    }
                 }
             }
             Self::IMMEDIATE(_) => {
@@ -67,10 +71,10 @@ impl OperandType {
         }
     }
 
-    pub fn additional_byte_count(&self) -> u8 {
+    pub fn total_bytes_required(&self) -> u8 {
         match self {
             OperandType::REGISTER(_) => 0,
-            OperandType::IMMEDIATE(size) => size.byte_count() - 1,
+            OperandType::IMMEDIATE(size) => size.byte_count(),
             OperandType::MEMORY(displacement) => displacement.byte_count(),
         }
     }
@@ -151,6 +155,19 @@ impl Size {
             Self::BYTE => 1,
             Self::WORD => 2,
         }
+    }
+}
+
+impl fmt::Display for Size {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s: String;
+
+        match self {
+            Self::WORD => s = "word".to_string(),
+            Self::BYTE => s = "byte".to_string(),
+        }
+
+        write!(f, "{}", s)
     }
 }
 
@@ -249,6 +266,28 @@ impl Operand {
                 }
             },
         }
+    }
+
+    pub fn n_bytes_needed(&self) -> u8 {
+        self.operand_type
+            .as_ref()
+            .map(|op_type| {
+                let bytes_required = op_type.total_bytes_required();
+
+                match op_type {
+                    OperandType::REGISTER(_) => bytes_required,
+                    OperandType::MEMORY(Displacement::YES(_)) => match self.displacement {
+                        Some(_) => bytes_required - 1,
+                        None => bytes_required,
+                    },
+                    OperandType::MEMORY(Displacement::NO) => bytes_required,
+                    OperandType::IMMEDIATE(_) => match self.data {
+                        Some(_) => bytes_required - 1,
+                        None => bytes_required,
+                    },
+                }
+            })
+            .unwrap()
     }
 }
 
