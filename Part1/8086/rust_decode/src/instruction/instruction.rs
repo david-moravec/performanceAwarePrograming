@@ -54,7 +54,7 @@ impl Instruction {
             match bits.usage {
                 BitUsage::LITERAL => Ok(()),
                 BitUsage::Flag(flag) => instr.set_flag(flag, decoded_value),
-                BitUsage::REG => instr.set_operand_a(decoded_value),
+                BitUsage::REG => instr.set_reg_operand(decoded_value),
                 u => Err(
                     DecodingError::InvalidBitUsageError(
                         format!(
@@ -82,8 +82,8 @@ impl Instruction {
             match bits.usage {
                 BitUsage::LITERAL => self.handle_literal(),
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
-                BitUsage::REG => self.set_operand_a(decoded_value),
-                BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order),
+                BitUsage::REG => self.set_reg_operand(decoded_value),
+                BitUsage::Data(_) => self.set_immediate_operand(Some(decoded_value.into())),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
                 u => return Err(
@@ -96,13 +96,14 @@ impl Instruction {
             }?;
         }
 
-        self.set_operand_b(rm, mode)?;
+        self.set_rm_operand(rm, mode)?;
 
+        println!("{:?}", self);
         Ok(self.additional_byte_count().into())
     }
 
     fn handle_literal(&mut self) -> Result<(), DecodingError> {
-        Ok(self.operand_a = Some(Operand::immediate(None, self.flags)?))
+        self.set_immediate_operand(None)
     }
 
     fn should_process_bits(&self, bits: Bits) -> bool {
@@ -121,6 +122,7 @@ impl Instruction {
                     .unwrap();
 
                 match type_b {
+                    OperandType::REGISTER(_) => false,
                     OperandType::MEMORY(Displacement::NO) => false,
                     OperandType::MEMORY(Displacement::YES(size)) => match bit_order {
                         BitOrder::LOW => true,
@@ -159,7 +161,13 @@ impl Instruction {
 
                 if self.should_process_bits(*bits) {
                     match bits.usage {
-                        BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order),
+                        BitUsage::Data(bit_order) => {
+                            match self.set_immediate_operand(Some(decoded_value.into())) {
+                                Ok(_) => Ok(()),
+                                Err(DecodingError::FieldAlreadyDecodedError) => self.set_data(decoded_value, bit_order),
+                                Err(e) => Err(e),
+                            }
+                        }
                         BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order),
                         u => Err(
                             DecodingError::InvalidBitUsageError(
@@ -185,7 +193,7 @@ impl Instruction {
         }
     }
 
-    fn set_operand_b(&mut self, rm: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
+    fn set_rm_operand(&mut self, rm: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
         match (rm, mode) {
             (None, None) => Ok(()),
             (Some(rm), Some(mode)) => match &self.operand_b {
@@ -196,7 +204,7 @@ impl Instruction {
         }
     }
 
-    fn set_operand_a(&mut self, reg: u8) -> Result<(), DecodingError> {
+    fn set_reg_operand(&mut self, reg: u8) -> Result<(), DecodingError> {
         match &self.operand_a {
             Some(_) => panic!(),
             None => Ok(self.operand_a = Some(Operand::reg(reg, self.flags)?)),
@@ -206,12 +214,12 @@ impl Instruction {
     fn additional_byte_count(&self) -> u8 {
         self.operand_a
             .as_ref()
-            .map(|op| op.n_bytes_needed())
+            .map(|op| op.n_bytes_needed(self.flags, &self.ass_instr))
             .unwrap()
             + self
                 .operand_b
                 .as_ref()
-                .map(|op| op.n_bytes_needed())
+                .map(|op| op.n_bytes_needed(self.flags, &self.ass_instr))
                 .unwrap()
     }
 
@@ -223,7 +231,7 @@ impl Instruction {
 
         let b_type = op_b.operand_type.as_ref().unwrap();
 
-        if self.flags & BitFlag::D == BitFlag::D {
+        if self.flags.is_flag_toogled(BitFlag::D) {
             src = op_b;
             dst = op_a;
         } else if matches!(b_type, OperandType::IMMEDIATE(_)) {
@@ -263,15 +271,18 @@ impl Instruction {
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
         }
     }
+    fn set_immediate_operand(&mut self, data: Option<i16>) -> Result<(), DecodingError> {
+        let a = match (&self.operand_a, &self.operand_b) {
+            (Some(_), None) => Ok(self.operand_b = Some(Operand::immediate(data, self.flags)?)),
+            (None, Some(_)) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
+            (None, None) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
+            _ => Err(DecodingError::FieldAlreadyDecodedError),
+        };
+
+        a
+    }
 
     fn set_data(&mut self, data: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
-        match (&self.operand_a, &self.operand_b) {
-            (Some(_), None) => self.operand_b = Some(Operand::immediate(None, self.flags)?),
-            (None, Some(_)) => self.operand_a = Some(Operand::immediate(None, self.flags)?),
-            (None, None) => self.operand_a = Some(Operand::immediate(None, self.flags)?),
-            _ => (),
-        }
-
         let operand_b = self.operand_b.as_mut().expect("Operand must be set");
         let operand_a = self.operand_a.as_mut().expect("Operand Must be set");
         let operand_b_type = operand_b.operand_type.as_ref().unwrap();
@@ -325,12 +336,12 @@ mod test {
         let instr = Instruction::new(TEST_INSTRUCTION.to_be_bytes()[0]).unwrap();
 
         assert!(matches!(instr.operation, Operation::MOV));
-        assert!(instr.flags & BitFlag::W == BitFlag::W);
+        assert!(instr.flags.is_flag_toogled(BitFlag::W));
 
         let instr = Instruction::new(TEST_INSTRUCTION2.to_be_bytes()[0]).unwrap();
 
         assert!(matches!(instr.operation, Operation::MOV));
-        assert!(instr.flags == BitFlag::W | BitFlag::D);
+        assert!(instr.flags.is_flag_toogled(BitFlag::W | BitFlag::D));
     }
 
     #[test]

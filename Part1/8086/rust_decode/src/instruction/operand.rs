@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt};
 
-use crate::assembled_instruction::{BitFlag, BitOrder};
+use crate::assembled_instruction::{AssembledInstruction, BitFlag, BitOrder, S};
 use crate::instruction::instruction::DecodingError;
 
 #[derive(Debug)]
@@ -71,10 +71,21 @@ impl OperandType {
         }
     }
 
-    pub fn total_bytes_required(&self) -> u8 {
+    pub fn total_bytes_required(&self, flags: BitFlag, ass_instr: &AssembledInstruction) -> u8 {
         match self {
             OperandType::REGISTER(_) => 0,
-            OperandType::IMMEDIATE(size) => size.byte_count(),
+            OperandType::IMMEDIATE(size) => {
+                if ass_instr.includes_bits(S) {
+                    if flags.is_flag_toogled(BitFlag::S) {
+                        size.byte_count() - 1
+                    } else {
+                        size.byte_count()
+                    }
+                } else {
+                    println!("does not includ eS");
+                    size.byte_count()
+                }
+            }
             OperandType::MEMORY(displacement) => displacement.byte_count(),
         }
     }
@@ -143,7 +154,7 @@ pub enum Size {
 
 impl Size {
     pub fn new(flags: BitFlag) -> Self {
-        if flags & BitFlag::W != BitFlag::NOTHING {
+        if flags.is_flag_toogled(BitFlag::W) {
             Self::WORD
         } else {
             Self::BYTE
@@ -237,6 +248,7 @@ impl Operand {
     }
 
     pub fn set_data(&mut self, data_decoded: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
+        println!("setting data {:}", data_decoded);
         match bit_order {
             BitOrder::LOW => match self.data {
                 Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
@@ -268,11 +280,11 @@ impl Operand {
         }
     }
 
-    pub fn n_bytes_needed(&self) -> u8 {
+    pub fn n_bytes_needed(&self, flags: BitFlag, ass_instr: &AssembledInstruction) -> u8 {
         self.operand_type
             .as_ref()
             .map(|op_type| {
-                let bytes_required = op_type.total_bytes_required();
+                let bytes_required = op_type.total_bytes_required(flags, ass_instr);
 
                 match op_type {
                     OperandType::REGISTER(_) => bytes_required,

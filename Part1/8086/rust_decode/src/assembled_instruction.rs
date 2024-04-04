@@ -1,8 +1,6 @@
-use std::fmt::Display;
-
 use bitflags::bitflags;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitUsage {
     LITERAL,
     MOD,
@@ -15,7 +13,7 @@ pub enum BitUsage {
     PLACEHOLDER,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitOrder {
     LOW,
     HIGH,
@@ -30,6 +28,12 @@ bitflags! {
         const V = 0b01000;
         const Z = 0b10000;
         const NOTHING = 0b00000;
+    }
+}
+
+impl BitFlag {
+    pub fn is_flag_toogled(&self, flag: BitFlag) -> bool {
+        *self & flag == flag
     }
 }
 
@@ -49,6 +53,10 @@ impl Bits {
             shift: Some(8 - size),
             size,
         }
+    }
+
+    pub fn is_bit_usage(&self, bit_usage: &BitUsage) -> bool {
+        self.usage == *bit_usage
     }
 
     const fn mask(&self) -> u8 {
@@ -100,6 +108,7 @@ const MOD: Bits = bits!(BitUsage::MOD, 2);
 const REG: Bits = bits!(BitUsage::REG, 3);
 const RM: Bits = bits!(BitUsage::RM, 3);
 const D: Bits = bits!(-f BitFlag::D);
+pub const S: Bits = bits!(-f BitFlag::S);
 const W: Bits = bits!(-f BitFlag::W);
 const DATA_LO: Bits = bits!(-data BitOrder::LOW);
 const DATA_HI: Bits = bits!(-data BitOrder::HIGH);
@@ -134,6 +143,14 @@ impl AssembledInstruction {
 
         Ok(literal.value.expect("Literal has to have a value")
             == byte >> literal.shift.expect("Should not Fail"))
+    }
+
+    pub fn includes_bits(&self, bits_checked_againts: Bits) -> bool {
+        self.bytes
+            .iter()
+            .flatten()
+            .flat_map(|byte| byte.bits.iter().flatten())
+            .any(|bits_contained| bits_contained.is_bit_usage(&bits_checked_againts.usage))
     }
 }
 
@@ -203,7 +220,7 @@ impl fmt::Display for Operation {
 use Operation::*;
 
 lazy_static! {
-    static ref INSTRUCTION_TABLE: [AssembledInstruction; 4] = [
+    static ref INSTRUCTION_TABLE: [AssembledInstruction; 5] = [
         INSTR!(
             MOV,
             [Bits::literal(0b100010, 6), D, W],
@@ -233,6 +250,15 @@ lazy_static! {
             [DISP_LO],
             [DISP_HI]
         ),
+        INSTR!(
+            ADD,
+            [Bits::literal(0b100000, 6), S, W],
+            [MOD, Bits::literal(0b000, 3), RM],
+            [DISP_LO],
+            [DISP_HI],
+            [DATA_LO],
+            [DATA_HI]
+        )
     ];
 }
 
@@ -261,7 +287,6 @@ mod tests {
             get_assembled_instruction(0b00000000).unwrap().operation,
             ADD
         ));
-        assert!(get_assembled_instruction(0b10000000).is_err());
     }
 
     #[test]
@@ -298,5 +323,22 @@ mod tests {
         };
 
         assert_eq!(bits.decode_value(test_byte), 1);
+    }
+
+    #[test]
+    fn test_includes_bits() {
+        let instr = INSTR!(
+            MOV,
+            [Bits::literal(0b1100011, 7), W],
+            [MOD, Bits::literal(0b000, 3), RM],
+            [DISP_LO],
+            [DISP_HI],
+            [DATA_LO],
+            [DATA_HI]
+        );
+
+        assert!(instr.includes_bits(DISP_LO));
+        assert!(instr.includes_bits(MOD));
+        assert!(!instr.includes_bits(S));
     }
 }
