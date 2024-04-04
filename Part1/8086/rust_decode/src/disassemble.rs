@@ -109,8 +109,8 @@ mod test {
 
         println!("{:?}", instruction);
 
-        assert_eq!(format!("{}", instruction), "mov dx, 3948");
         assert_eq!(bytes_processed, 3);
+        assert_eq!(format!("{}", instruction), "mov dx, 3948");
     }
 
     #[test]
@@ -127,6 +127,23 @@ mod test {
         println!("{:?}", instruction);
 
         assert_eq!(format!("{}", instruction), "mov [bp + di], byte 7");
+        assert_eq!(bytes_processed, 3);
+    }
+
+    #[test]
+    fn test_immediate_add() {
+        let mut buffer = InstructionBuffer {
+            buf: [0x83, 0xc6, 0x02].to_vec(),
+            last_read: 0,
+            bytes_loaded: 3,
+        };
+
+        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
+
+        println!("bytes processed {:}", bytes_processed);
+        println!("{:?}", instruction);
+
+        assert_eq!(format!("{}", instruction), "add si, 2");
         assert_eq!(bytes_processed, 3);
     }
 }

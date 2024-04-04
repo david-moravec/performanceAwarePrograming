@@ -121,6 +121,7 @@ impl Instruction {
                     .unwrap();
 
                 match type_b {
+                    OperandType::REGISTER(_) => false,
                     OperandType::MEMORY(Displacement::NO) => false,
                     OperandType::MEMORY(Displacement::YES(size)) => match bit_order {
                         BitOrder::LOW => true,
@@ -206,12 +207,12 @@ impl Instruction {
     fn additional_byte_count(&self) -> u8 {
         self.operand_a
             .as_ref()
-            .map(|op| op.n_bytes_needed())
+            .map(|op| op.n_bytes_needed(self.flags, &self.ass_instr))
             .unwrap()
             + self
                 .operand_b
                 .as_ref()
-                .map(|op| op.n_bytes_needed())
+                .map(|op| op.n_bytes_needed(self.flags, &self.ass_instr))
                 .unwrap()
     }
 
@@ -223,7 +224,7 @@ impl Instruction {
 
         let b_type = op_b.operand_type.as_ref().unwrap();
 
-        if self.flags & BitFlag::D == BitFlag::D {
+        if self.flags.is_flag_toogled(BitFlag::D) {
             src = op_b;
             dst = op_a;
         } else if matches!(b_type, OperandType::IMMEDIATE(_)) {
@@ -325,12 +326,12 @@ mod test {
         let instr = Instruction::new(TEST_INSTRUCTION.to_be_bytes()[0]).unwrap();
 
         assert!(matches!(instr.operation, Operation::MOV));
-        assert!(instr.flags & BitFlag::W == BitFlag::W);
+        assert!(instr.flags.is_flag_toogled(BitFlag::W));
 
         let instr = Instruction::new(TEST_INSTRUCTION2.to_be_bytes()[0]).unwrap();
 
         assert!(matches!(instr.operation, Operation::MOV));
-        assert!(instr.flags == BitFlag::W | BitFlag::D);
+        assert!(instr.flags.is_flag_toogled(BitFlag::W | BitFlag::D));
     }
 
     #[test]
