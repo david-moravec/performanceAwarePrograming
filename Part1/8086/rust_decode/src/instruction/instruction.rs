@@ -54,7 +54,7 @@ impl Instruction {
             match bits.usage {
                 BitUsage::LITERAL => Ok(()),
                 BitUsage::Flag(flag) => instr.set_flag(flag, decoded_value),
-                BitUsage::REG => instr.set_operand_a(decoded_value),
+                BitUsage::REG => instr.set_reg_operand(decoded_value),
                 u => Err(
                     DecodingError::InvalidBitUsageError(
                         format!(
@@ -82,8 +82,8 @@ impl Instruction {
             match bits.usage {
                 BitUsage::LITERAL => self.handle_literal(),
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
-                BitUsage::REG => self.set_operand_a(decoded_value),
-                BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order),
+                BitUsage::REG => self.set_reg_operand(decoded_value),
+                BitUsage::Data(_) => self.set_immediate_operand(decoded_value.into()),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
                 u => return Err(
@@ -96,7 +96,7 @@ impl Instruction {
             }?;
         }
 
-        self.set_operand_b(rm, mode)?;
+        self.set_rm_operand(rm, mode)?;
 
         Ok(self.additional_byte_count().into())
     }
@@ -160,7 +160,13 @@ impl Instruction {
 
                 if self.should_process_bits(*bits) {
                     match bits.usage {
-                        BitUsage::Data(bit_order) => self.set_data(decoded_value, bit_order),
+                        BitUsage::Data(bit_order) => {
+                            match self.set_immediate_operand(decoded_value.into()) {
+                                Ok(_) => Ok(()),
+                                Err(DecodingError::FieldAlreadyDecodedError) => self.set_data(decoded_value, bit_order),
+                                Err(e) => Err(e),
+                            }
+                        }
                         BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order),
                         u => Err(
                             DecodingError::InvalidBitUsageError(
@@ -186,7 +192,7 @@ impl Instruction {
         }
     }
 
-    fn set_operand_b(&mut self, rm: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
+    fn set_rm_operand(&mut self, rm: Option<u8>, mode: Option<u8>) -> Result<(), DecodingError> {
         match (rm, mode) {
             (None, None) => Ok(()),
             (Some(rm), Some(mode)) => match &self.operand_b {
@@ -197,7 +203,7 @@ impl Instruction {
         }
     }
 
-    fn set_operand_a(&mut self, reg: u8) -> Result<(), DecodingError> {
+    fn set_reg_operand(&mut self, reg: u8) -> Result<(), DecodingError> {
         match &self.operand_a {
             Some(_) => panic!(),
             None => Ok(self.operand_a = Some(Operand::reg(reg, self.flags)?)),
@@ -264,15 +270,20 @@ impl Instruction {
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
         }
     }
+    fn set_immediate_operand(&mut self, data: i16) -> Result<(), DecodingError> {
+        match (&self.operand_a, &self.operand_b) {
+            (Some(_), None) => {
+                Ok(self.operand_b = Some(Operand::immediate(Some(data), self.flags)?))
+            }
+            (None, Some(_)) => {
+                Ok(self.operand_a = Some(Operand::immediate(Some(data), self.flags)?))
+            }
+            (None, None) => Ok(self.operand_a = Some(Operand::immediate(Some(data), self.flags)?)),
+            _ => Err(DecodingError::FieldAlreadyDecodedError),
+        }
+    }
 
     fn set_data(&mut self, data: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
-        match (&self.operand_a, &self.operand_b) {
-            (Some(_), None) => self.operand_b = Some(Operand::immediate(None, self.flags)?),
-            (None, Some(_)) => self.operand_a = Some(Operand::immediate(None, self.flags)?),
-            (None, None) => self.operand_a = Some(Operand::immediate(None, self.flags)?),
-            _ => (),
-        }
-
         let operand_b = self.operand_b.as_mut().expect("Operand must be set");
         let operand_a = self.operand_a.as_mut().expect("Operand Must be set");
         let operand_b_type = operand_b.operand_type.as_ref().unwrap();
