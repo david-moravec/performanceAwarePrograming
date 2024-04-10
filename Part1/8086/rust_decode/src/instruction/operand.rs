@@ -220,6 +220,7 @@ impl Operand {
     }
 
     pub fn immediate(data: Option<i16>, flags: BitFlag) -> Result<Self, OperandTypeError> {
+        println!("\n\n\nLOOOOOOOOOOOOOOOOOOOL\n\n\n");
         Ok(Operand {
             operand_type: Some(OperandType::IMMEDIATE(Size::new(flags))),
             value: None,

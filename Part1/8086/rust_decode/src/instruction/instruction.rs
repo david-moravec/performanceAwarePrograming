@@ -75,6 +75,8 @@ impl Instruction {
         let mut mode: Option<u8> = None;
         let mut rm: Option<u8> = None;
 
+        println!("{:?}", self);
+        println!("\ncontinue\n");
         // In First byte only flags, reg, and Literal bits are expeected
         for bits in second_byte.bits.iter().flatten() {
             let decoded_value = bits.decode_value(byte);
@@ -95,6 +97,7 @@ impl Instruction {
                 ),
             }?;
         }
+        println!("{:?}", self);
 
         self.set_rm_operand(rm, mode)?;
 
@@ -102,7 +105,7 @@ impl Instruction {
     }
 
     fn handle_literal(&mut self) -> Result<(), DecodingError> {
-        Ok(self.operand_a = Some(Operand::immediate(None, self.flags)?))
+        Ok(())
     }
 
     fn should_process_bits(&self, bits: Bits) -> bool {
@@ -179,6 +182,7 @@ impl Instruction {
                 }
             }
         }
+        println!("{:?}", self);
         Ok(())
     }
 
@@ -271,7 +275,7 @@ impl Instruction {
         }
     }
     fn set_immediate_operand(&mut self, data: i16) -> Result<(), DecodingError> {
-        match (&self.operand_a, &self.operand_b) {
+        let a = match (&self.operand_a, &self.operand_b) {
             (Some(_), None) => {
                 Ok(self.operand_b = Some(Operand::immediate(Some(data), self.flags)?))
             }
@@ -280,7 +284,9 @@ impl Instruction {
             }
             (None, None) => Ok(self.operand_a = Some(Operand::immediate(Some(data), self.flags)?)),
             _ => Err(DecodingError::FieldAlreadyDecodedError),
-        }
+        };
+
+        a
     }
 
     fn set_data(&mut self, data: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
