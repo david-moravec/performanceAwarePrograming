@@ -65,85 +65,58 @@ pub fn disassemble_bytes_in(mut buffer: InstructionBuffer) -> DisassemblyResult<
 mod test {
     use super::*;
 
-    #[test]
-    fn test_memory_mode_instruction() {
-        let instr: u16 = 0x8A00;
-
+    fn test_instruction(bytes: Vec<u8>, instruction_str: &str) -> () {
         let mut buffer = InstructionBuffer {
-            buf: instr.to_be_bytes().to_vec(),
+            buf: bytes.clone(),
             last_read: 0,
-            bytes_loaded: 2,
+            bytes_loaded: bytes.len(),
         };
 
         let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
 
-        assert_eq!(format!("{}", instruction), "mov al, [bx + si]");
-        assert_eq!(bytes_processed, 2);
+        println!("{:?}", instruction);
+
+        assert_eq!(bytes_processed, bytes.len());
+        assert_eq!(format!("{}", instruction), instruction_str);
+    }
+
+    #[test]
+    fn test_memory_mode_instruction() {
+        test_instruction(vec![0x8A, 0x00], "mov al, [bx + si]")
     }
 
     #[test]
     fn test_memory_mode_instruction_displacement() {
-        let instr: u32 = 0x8A808713;
-
-        let mut buffer = InstructionBuffer {
-            buf: instr.to_be_bytes().to_vec(),
-            last_read: 0,
-            bytes_loaded: 4,
-        };
-
-        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
-
-        assert_eq!(format!("{}", instruction), "mov al, [bx + si+4999]");
-        assert_eq!(bytes_processed, 4);
+        test_instruction(vec![0x8A, 0x80, 0x87, 0x13], "mov al, [bx + si+4999]")
     }
 
     #[test]
     fn test_immediate_to_register() {
-        let mut buffer = InstructionBuffer {
-            buf: [0xBA, 0x6C, 0x0F].to_vec(),
-            last_read: 0,
-            bytes_loaded: 3,
-        };
-
-        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
-
-        println!("{:?}", instruction);
-
-        assert_eq!(bytes_processed, 3);
-        assert_eq!(format!("{}", instruction), "mov dx, 3948");
+        test_instruction(vec![0xBA, 0x6C, 0x0F], "mov dx, 3948")
     }
 
     #[test]
     fn test_immediate_to_memory() {
-        let mut buffer = InstructionBuffer {
-            buf: [0xC6, 0x03, 0x07].to_vec(),
-            last_read: 0,
-            bytes_loaded: 3,
-        };
-
-        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
-
-        println!("bytes processed {:}", bytes_processed);
-        println!("{:?}", instruction);
-
-        assert_eq!(format!("{}", instruction), "mov [bp + di], byte 7");
-        assert_eq!(bytes_processed, 3);
+        test_instruction(vec![0xC6, 0x03, 0x07], "mov [bp + di], byte 7")
     }
 
     #[test]
     fn test_immediate_add() {
-        let mut buffer = InstructionBuffer {
-            buf: [0x83, 0xc6, 0x02].to_vec(),
-            last_read: 0,
-            bytes_loaded: 3,
-        };
+        test_instruction(vec![0x83, 0xc6, 0x02], "add si, 2")
+    }
 
-        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
+    #[test]
+    fn test_immediate_add_a() {
+        test_instruction(vec![0x03, 0x18], "add bx, [bx + si]")
+    }
 
-        println!("bytes processed {:}", bytes_processed);
-        println!("{:?}", instruction);
+    #[test]
+    fn test_immediate_add_b() {
+        test_instruction(vec![0x03, 0x18], "add bx, [bx + si]")
+    }
 
-        assert_eq!(format!("{}", instruction), "add si, 2");
-        assert_eq!(bytes_processed, 3);
+    #[test]
+    fn test_immediate_add_c() {
+        test_instruction(vec![0x02, 0x7A, 0x04], "add bh, [bp + si+4]")
     }
 }
