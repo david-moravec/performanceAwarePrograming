@@ -91,6 +91,11 @@ mod test {
     }
 
     #[test]
+    fn test_mov_a() {
+        test_instruction(vec![0x8b, 0x41, 0xdb], "mov ax, [bx + di-37]")
+    }
+
+    #[test]
     fn test_immediate_to_register() {
         test_instruction(vec![0xBA, 0x6C, 0x0F], "mov dx, 3948")
     }
@@ -119,21 +124,4 @@ mod test {
     fn test_immediate_add_c() {
         test_instruction(vec![0x02, 0x7A, 0x04], "add bh, [bp + si+4]")
     }
-
-    // #[test]
-    // fn test_immediate_add() {
-    //     let mut buffer = InstructionBuffer {
-    //         buf: [0x83, 0xc6, 0x02].to_vec(),
-    //         last_read: 0,
-    //         bytes_loaded: 3,
-    //     };
-    //
-    //     let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
-    //
-    //     println!("bytes processed {:}", bytes_processed);
-    //     println!("{:?}", instruction);
-    //
-    //     assert_eq!(format!("{}", instruction), "add si, 2");
-    //     assert_eq!(bytes_processed, 3);
-    // }
 }

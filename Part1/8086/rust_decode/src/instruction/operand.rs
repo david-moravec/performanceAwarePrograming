@@ -7,6 +7,7 @@ use crate::instruction::instruction::DecodingError;
 pub enum OperandToStrError {
     RegisterValueError,
     EffectiveAddrValueError,
+    UnexpctedOperandError,
 }
 
 #[derive(Debug)]
@@ -38,7 +39,7 @@ impl OperandType {
     fn to_str(
         &self,
         value: Option<u8>,
-        displacement_value: Option<u16>,
+        displacement_value: Option<i16>,
         data: Option<i16>,
     ) -> Result<String, OperandToStrError> {
         match self {
@@ -82,7 +83,6 @@ impl OperandType {
                         size.byte_count()
                     }
                 } else {
-                    println!("does not includ eS");
                     size.byte_count()
                 }
             }
@@ -186,6 +186,7 @@ impl fmt::Display for Size {
 pub enum OperandTypeError {
     UnknownModError,
     MissingSizeSpecifierError,
+    UncompatibleOperandTypeError,
 }
 
 use OperandTypeError::*;
@@ -206,7 +207,7 @@ impl OperandType {
 pub struct Operand {
     pub operand_type: Option<OperandType>,
     pub value: Option<u8>,
-    pub displacement: Option<u16>,
+    pub displacement: Option<i16>,
     pub data: Option<i16>,
 }
 
@@ -220,13 +221,12 @@ impl Operand {
         }
     }
 
-    pub fn immediate(data: Option<i16>, flags: BitFlag) -> Result<Self, OperandTypeError> {
-        println!("\n\n\nLOOOOOOOOOOOOOOOOOOOL\n\n\n");
+    pub fn immediate(data: Option<u8>, flags: BitFlag) -> Result<Self, OperandTypeError> {
         Ok(Operand {
             operand_type: Some(OperandType::IMMEDIATE(Size::new(flags))),
             value: None,
             displacement: None,
-            data,
+            data: data.map(|d| d.into()),
         })
     }
 
@@ -248,8 +248,30 @@ impl Operand {
         })
     }
 
+    pub fn signed_displacement(&self) -> Result<i16, DecodingError> {
+        match self.operand_type {
+            Some(OperandType::MEMORY(Displacement::YES(size))) => match size {
+                Size::BYTE => {
+                    let u_disp = self
+                        .displacement
+                        .ok_or(DecodingError::FieldNotYetDecodedError)?;
+
+                    if u_disp & 0x80 > 0 {
+                        Ok((u_disp | 0b11111111 << 8).try_into().unwrap())
+                    } else {
+                        Ok((u_disp | 0x0000).try_into().unwrap())
+                    }
+                }
+                Size::WORD => self
+                    .displacement
+                    .ok_or(DecodingError::FieldNotYetDecodedError),
+            },
+            Some(_) => Err(OperandTypeError::UncompatibleOperandTypeError.into()),
+            None => Err(DecodingError::FieldNotYetDecodedError),
+        }
+    }
+
     pub fn set_data(&mut self, data_decoded: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
-        println!("setting data {:}", data_decoded);
         match bit_order {
             BitOrder::LOW => match self.data {
                 Some(_) => Err(DecodingError::FieldAlreadyDecodedError),
@@ -275,7 +297,7 @@ impl Operand {
             BitOrder::HIGH => match self.displacement {
                 None => Err(DecodingError::FieldNotYetDecodedError),
                 Some(data) => {
-                    Ok(self.displacement = Some(data | (displacement_decoded as u16) << 8))
+                    Ok(self.displacement = Some(data | (displacement_decoded as i16) << 8))
                 }
             },
         }
@@ -310,9 +332,28 @@ impl fmt::Display for Operand {
             .operand_type
             .as_ref()
             .unwrap()
-            .to_str(self.value, self.displacement, self.data)
+            .to_str(self.value, self.signed_displacement().ok(), self.data)
             .unwrap();
 
         write!(f, "{}", operand_str)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_signed_displacement() {
+        let op = Operand {
+            operand_type: Some(OperandType::MEMORY(Displacement::YES(Size::BYTE))),
+            data: None,
+            displacement: Some(0x00db),
+            value: None,
+        };
+
+        let signed_displacement = op.signed_displacement();
+
+        assert!(op.signed_displacement().unwrap() == -37);
     }
 }

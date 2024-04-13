@@ -75,8 +75,6 @@ impl Instruction {
         let mut mode: Option<u8> = None;
         let mut rm: Option<u8> = None;
 
-        println!("{:?}", self);
-        println!("\ncontinue\n");
         // In First byte only flags, reg, and Literal bits are expeected
         for bits in second_byte.bits.iter().flatten() {
             let decoded_value = bits.decode_value(byte);
@@ -97,11 +95,9 @@ impl Instruction {
                 ),
             }?;
         }
-        println!("{:?}", self);
 
         self.set_rm_operand(rm, mode)?;
 
-        println!("{:?}", self);
         Ok(self.additional_byte_count().into())
     }
 
@@ -183,7 +179,6 @@ impl Instruction {
                 }
             }
         }
-        println!("{:?}", self);
         Ok(())
     }
 
@@ -275,7 +270,7 @@ impl Instruction {
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
         }
     }
-    fn set_immediate_operand(&mut self, data: Option<i16>) -> Result<(), DecodingError> {
+    fn set_immediate_operand(&mut self, data: Option<u8>) -> Result<(), DecodingError> {
         let a = match (&self.operand_a, &self.operand_b) {
             (Some(_), None) => Ok(self.operand_b = Some(Operand::immediate(data, self.flags)?)),
             (None, Some(_)) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
