@@ -77,11 +77,12 @@ impl OperandType {
             OperandType::IMMEDIATE(size) => {
                 if ass_instr.includes_bits(S) {
                     if flags.is_flag_toogled(BitFlag::S) {
-                        size.byte_count()
-                    } else {
                         size.byte_count() - 1
+                    } else {
+                        size.byte_count()
                     }
                 } else {
+                    println!("does not includ eS");
                     size.byte_count()
                 }
             }
@@ -248,6 +249,7 @@ impl Operand {
     }
 
     pub fn set_data(&mut self, data_decoded: u8, bit_order: BitOrder) -> Result<(), DecodingError> {
+        println!("setting data {:}", data_decoded);
         match bit_order {
             BitOrder::LOW => match self.data {
                 Some(_) => Err(DecodingError::FieldAlreadyDecodedError),

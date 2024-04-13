@@ -1,6 +1,6 @@
 use bitflags::bitflags;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitUsage {
     LITERAL,
     MOD,
@@ -13,7 +13,7 @@ pub enum BitUsage {
     PLACEHOLDER,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitOrder {
     LOW,
     HIGH,
@@ -53,6 +53,10 @@ impl Bits {
             shift: Some(8 - size),
             size,
         }
+    }
+
+    pub fn is_bit_usage(&self, bit_usage: &BitUsage) -> bool {
+        self.usage == *bit_usage
     }
 
     const fn mask(&self) -> u8 {
@@ -141,12 +145,12 @@ impl AssembledInstruction {
             == byte >> literal.shift.expect("Should not Fail"))
     }
 
-    pub fn includes_bits(&self, bits: Bits) -> bool {
+    pub fn includes_bits(&self, bits_checked_againts: Bits) -> bool {
         self.bytes
             .iter()
             .flatten()
             .flat_map(|byte| byte.bits.iter().flatten())
-            .any(|usage| matches!(usage, bits))
+            .any(|bits_contained| bits_contained.is_bit_usage(&bits_checked_againts.usage))
     }
 }
 
@@ -319,5 +323,22 @@ mod tests {
         };
 
         assert_eq!(bits.decode_value(test_byte), 1);
+    }
+
+    #[test]
+    fn test_includes_bits() {
+        let instr = INSTR!(
+            MOV,
+            [Bits::literal(0b1100011, 7), W],
+            [MOD, Bits::literal(0b000, 3), RM],
+            [DISP_LO],
+            [DISP_HI],
+            [DATA_LO],
+            [DATA_HI]
+        );
+
+        assert!(instr.includes_bits(DISP_LO));
+        assert!(instr.includes_bits(MOD));
+        assert!(!instr.includes_bits(S));
     }
 }

@@ -85,7 +85,7 @@ impl Instruction {
                 BitUsage::LITERAL => self.handle_literal(),
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
                 BitUsage::REG => self.set_reg_operand(decoded_value),
-                BitUsage::Data(_) => self.set_immediate_operand(decoded_value.into()),
+                BitUsage::Data(_) => self.set_immediate_operand(Some(decoded_value.into())),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
                 u => return Err(
@@ -101,11 +101,12 @@ impl Instruction {
 
         self.set_rm_operand(rm, mode)?;
 
+        println!("{:?}", self);
         Ok(self.additional_byte_count().into())
     }
 
     fn handle_literal(&mut self) -> Result<(), DecodingError> {
-        Ok(())
+        self.set_immediate_operand(None)
     }
 
     fn should_process_bits(&self, bits: Bits) -> bool {
@@ -164,7 +165,7 @@ impl Instruction {
                 if self.should_process_bits(*bits) {
                     match bits.usage {
                         BitUsage::Data(bit_order) => {
-                            match self.set_immediate_operand(decoded_value.into()) {
+                            match self.set_immediate_operand(Some(decoded_value.into())) {
                                 Ok(_) => Ok(()),
                                 Err(DecodingError::FieldAlreadyDecodedError) => self.set_data(decoded_value, bit_order),
                                 Err(e) => Err(e),
@@ -274,15 +275,11 @@ impl Instruction {
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
         }
     }
-    fn set_immediate_operand(&mut self, data: i16) -> Result<(), DecodingError> {
+    fn set_immediate_operand(&mut self, data: Option<i16>) -> Result<(), DecodingError> {
         let a = match (&self.operand_a, &self.operand_b) {
-            (Some(_), None) => {
-                Ok(self.operand_b = Some(Operand::immediate(Some(data), self.flags)?))
-            }
-            (None, Some(_)) => {
-                Ok(self.operand_a = Some(Operand::immediate(Some(data), self.flags)?))
-            }
-            (None, None) => Ok(self.operand_a = Some(Operand::immediate(Some(data), self.flags)?)),
+            (Some(_), None) => Ok(self.operand_b = Some(Operand::immediate(data, self.flags)?)),
+            (None, Some(_)) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
+            (None, None) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
             _ => Err(DecodingError::FieldAlreadyDecodedError),
         };
 
