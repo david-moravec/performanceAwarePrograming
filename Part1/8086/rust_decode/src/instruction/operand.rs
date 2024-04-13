@@ -32,6 +32,7 @@ impl From<OperandToStrError> for OperandError {
 pub enum OperandType {
     REGISTER(Size),
     MEMORY(Displacement),
+    DIRECT_ACCESS(Displacement),
     IMMEDIATE(Size),
 }
 
@@ -66,6 +67,10 @@ impl OperandType {
                     }
                 }
             }
+            Self::DIRECT_ACCESS(_) => Ok(format!(
+                "[{}]",
+                displacement_value.expect("Disaplacment should have valeu")
+            )),
             Self::IMMEDIATE(_) => {
                 Ok(format!("{}", data.expect("Immediate must have data")).to_string())
             }
@@ -87,6 +92,7 @@ impl OperandType {
                 }
             }
             OperandType::MEMORY(displacement) => displacement.byte_count(),
+            OperandType::DIRECT_ACCESS(_) => 2,
         }
     }
 }
@@ -192,9 +198,15 @@ pub enum OperandTypeError {
 use OperandTypeError::*;
 
 impl OperandType {
-    fn try_from_mod(mode: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
+    fn try_from_mod(rm: u8, mode: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
         match mode {
-            0b00 => Ok(OperandType::MEMORY(Displacement::NO)),
+            0b00 => {
+                if rm == 0b110 {
+                    Ok(OperandType::DIRECT_ACCESS(Displacement::YES(Size::WORD)))
+                } else {
+                    Ok(OperandType::MEMORY(Displacement::NO))
+                }
+            }
             0b01 => Ok(OperandType::MEMORY(Displacement::YES(Size::BYTE))),
             0b10 => Ok(OperandType::MEMORY(Displacement::YES(Size::WORD))),
             0b11 => Ok(OperandType::REGISTER(Size::new(flags))),
@@ -230,10 +242,10 @@ impl Operand {
         })
     }
 
-    pub fn rm(value: u8, mode: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
+    pub fn rm(rm: u8, mode: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
         Ok(Operand {
-            operand_type: Some(OperandType::try_from_mod(mode, flags)?),
-            value: Some(value),
+            operand_type: Some(OperandType::try_from_mod(rm, mode, flags)?),
+            value: Some(rm),
             displacement: None,
             data: None,
         })
@@ -266,6 +278,9 @@ impl Operand {
                     .displacement
                     .ok_or(DecodingError::FieldNotYetDecodedError),
             },
+            Some(OperandType::DIRECT_ACCESS(_)) => self
+                .displacement
+                .ok_or(DecodingError::FieldNotYetDecodedError),
             Some(_) => Err(OperandTypeError::UncompatibleOperandTypeError.into()),
             None => Err(DecodingError::FieldNotYetDecodedError),
         }
@@ -320,6 +335,7 @@ impl Operand {
                         Some(_) => bytes_required - 1,
                         None => bytes_required,
                     },
+                    _ => bytes_required,
                 }
             })
             .unwrap()

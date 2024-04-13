@@ -127,6 +127,7 @@ impl Instruction {
                         BitOrder::LOW => true,
                         BitOrder::HIGH => matches!(size, Size::WORD),
                     },
+                    OperandType::DIRECT_ACCESS(_) => true,
                     _ => panic!("Expected only memory Operand"),
                 }
             }
@@ -265,6 +266,12 @@ impl Instruction {
                 operand_b.set_displacement(displacement_decoded, bit_order)
             }
             (_, OperandType::MEMORY(_)) => {
+                operand_a.set_displacement(displacement_decoded, bit_order)
+            }
+            (OperandType::DIRECT_ACCESS(_), _) => {
+                operand_b.set_displacement(displacement_decoded, bit_order)
+            }
+            (_, OperandType::DIRECT_ACCESS(_)) => {
                 operand_a.set_displacement(displacement_decoded, bit_order)
             }
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
