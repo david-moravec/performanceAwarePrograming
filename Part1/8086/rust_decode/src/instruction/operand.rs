@@ -260,6 +260,25 @@ impl Operand {
         })
     }
 
+    pub fn signed_data(&self) -> Result<i16, DecodingError> {
+        match self.operand_type {
+            Some(OperandType::IMMEDIATE(size)) => match size {
+                Size::BYTE => {
+                    let u_data = self.data.ok_or(DecodingError::FieldNotYetDecodedError)?;
+
+                    if u_data & 0x80 > 0 {
+                        Ok((u_data | 0b11111111 << 8).try_into().unwrap())
+                    } else {
+                        Ok((u_data | 0x0000).try_into().unwrap())
+                    }
+                }
+                Size::WORD => self.data.ok_or(DecodingError::FieldNotYetDecodedError),
+            },
+            Some(_) => Err(OperandTypeError::UncompatibleOperandTypeError.into()),
+            None => Err(DecodingError::FieldNotYetDecodedError),
+        }
+    }
+
     pub fn signed_displacement(&self) -> Result<i16, DecodingError> {
         match self.operand_type {
             Some(OperandType::MEMORY(Displacement::YES(size))) => match size {
@@ -352,7 +371,11 @@ impl fmt::Display for Operand {
             .operand_type
             .as_ref()
             .unwrap()
-            .to_str(self.value, self.signed_displacement().ok(), self.data)
+            .to_str(
+                self.value,
+                self.signed_displacement().ok(),
+                self.signed_data().ok(),
+            )
             .unwrap();
 
         write!(f, "{}", operand_str)
