@@ -113,6 +113,10 @@ impl Instruction {
                 self.set_rm_operand(Some(0b110), Some(0b00))?; // direct acces
                 self.set_flag(BitFlag::D, 1)
             }
+            0b1010001 => {
+                self.set_reg_operand(0)?;
+                self.set_rm_operand(Some(0b110), Some(0b00)) // direct acces
+            }
             _ => Ok(()),
         }
     }

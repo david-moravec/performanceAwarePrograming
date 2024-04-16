@@ -96,8 +96,13 @@ mod test {
     }
 
     #[test]
-    fn test_immediate_mov_to_acc() {
+    fn test_immediate_mov_mem_to_acc() {
         test_instruction(vec![0xa1, 0xfb, 0x09], "mov ax, [2555]")
+    }
+
+    #[test]
+    fn test_immediate_acc_to_mem() {
+        test_instruction(vec![0xa3, 0x0f, 0x00], "mov [15], ax")
     }
 
     #[test]
