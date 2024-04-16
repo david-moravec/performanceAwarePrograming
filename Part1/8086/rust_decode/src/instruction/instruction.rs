@@ -47,12 +47,13 @@ impl Instruction {
             ass_instr,
         };
 
+        let mut lit_val: Option<u8> = None;
         // In First byte only flags, reg, and Literal bits are expeected
         for bits in first_byte.bits.iter().flatten() {
             let decoded_value: u8 = bits.decode_value(byte);
 
             match bits.usage {
-                BitUsage::LITERAL => Ok(()),
+                BitUsage::LITERAL => Ok(lit_val = Some(decoded_value)),
                 BitUsage::Flag(flag) => instr.set_flag(flag, decoded_value),
                 BitUsage::REG => instr.set_reg_operand(decoded_value),
                 u => Err(
@@ -64,6 +65,9 @@ impl Instruction {
                 ),
             }?;
         }
+
+        // flags must be resolved before this
+        lit_val.map(|l_val| instr.handle_literal_in_first_byte(l_val));
 
         Ok(instr)
     }
@@ -80,10 +84,11 @@ impl Instruction {
             let decoded_value = bits.decode_value(byte);
 
             match bits.usage {
-                BitUsage::LITERAL => self.handle_literal(),
+                BitUsage::LITERAL => self.handle_literal_in_second_byte(),
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
                 BitUsage::REG => self.set_reg_operand(decoded_value),
                 BitUsage::Data(_) => self.set_immediate_operand(Some(decoded_value.into())),
+                BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
                 u => return Err(
@@ -101,7 +106,18 @@ impl Instruction {
         Ok(self.additional_byte_count().into())
     }
 
-    fn handle_literal(&mut self) -> Result<(), DecodingError> {
+    fn handle_literal_in_first_byte(&mut self, decoded_value: u8) -> Result<(), DecodingError> {
+        match decoded_value {
+            0b1010000 => {
+                self.set_reg_operand(0)?;
+                self.set_rm_operand(Some(0b110), Some(0b00))?; // direct acces
+                self.set_flag(BitFlag::D, 1)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn handle_literal_in_second_byte(&mut self) -> Result<(), DecodingError> {
         self.set_immediate_operand(None)
     }
 
@@ -278,14 +294,12 @@ impl Instruction {
         }
     }
     fn set_immediate_operand(&mut self, data: Option<u8>) -> Result<(), DecodingError> {
-        let a = match (&self.operand_a, &self.operand_b) {
+        match (&self.operand_a, &self.operand_b) {
             (Some(_), None) => Ok(self.operand_b = Some(Operand::immediate(data, self.flags)?)),
             (None, Some(_)) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
             (None, None) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
             _ => Err(DecodingError::FieldAlreadyDecodedError),
-        };
-
-        a
+        }
     }
 
     fn set_data(&mut self, data: u8, bit_order: BitOrder) -> Result<(), DecodingError> {

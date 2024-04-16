@@ -335,6 +335,10 @@ impl Operand {
                         Some(_) => bytes_required - 1,
                         None => bytes_required,
                     },
+                    OperandType::DIRECT_ACCESS(Displacement::YES(_)) => match self.displacement {
+                        Some(_) => bytes_required - 1,
+                        None => bytes_required,
+                    },
                     _ => bytes_required,
                 }
             })
@@ -367,8 +371,6 @@ mod test {
             displacement: Some(0x00db),
             value: None,
         };
-
-        let signed_displacement = op.signed_displacement();
 
         assert!(op.signed_displacement().unwrap() == -37);
     }

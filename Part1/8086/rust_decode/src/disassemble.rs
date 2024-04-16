@@ -96,6 +96,11 @@ mod test {
     }
 
     #[test]
+    fn test_immediate_mov_to_acc() {
+        test_instruction(vec![0xa1, 0xfb, 0x09], "mov ax, [2555]")
+    }
+
+    #[test]
     fn test_immediate_mov_direct_addr() {
         test_instruction(vec![0x8b, 0x2e, 0x05, 0x00], "mov bp, [5]")
     }

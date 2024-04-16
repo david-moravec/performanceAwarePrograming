@@ -220,7 +220,7 @@ impl fmt::Display for Operation {
 use Operation::*;
 
 lazy_static! {
-    static ref INSTRUCTION_TABLE: [AssembledInstruction; 5] = [
+    static ref INSTRUCTION_TABLE: [AssembledInstruction; 6] = [
         INSTR!(
             MOV,
             [Bits::literal(0b100010, 6), D, W],
@@ -243,6 +243,7 @@ lazy_static! {
             [DATA_LO],
             [DATA_HI]
         ),
+        INSTR!(MOV, [Bits::literal(0b1010000, 7), W], [DISP_LO], [DISP_HI]),
         INSTR!(
             ADD,
             [Bits::literal(0b000000, 6), D, W],
