@@ -139,4 +139,9 @@ mod test {
     fn test_immediate_add_c() {
         test_instruction(vec![0x02, 0x7A, 0x04], "add bh, [bp + si+4]")
     }
+
+    #[test]
+    fn test_immediate_add_d() {
+        test_instruction(vec![0x05, 0xe8, 0x03], "add ax, 1000")
+    }
 }

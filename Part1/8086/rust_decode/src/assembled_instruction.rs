@@ -198,7 +198,7 @@ macro_rules! INSTR {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operation {
     MOV,
     ADD,
@@ -220,7 +220,7 @@ impl fmt::Display for Operation {
 use Operation::*;
 
 lazy_static! {
-    static ref INSTRUCTION_TABLE: [AssembledInstruction; 7] = [
+    static ref INSTRUCTION_TABLE: [AssembledInstruction; 8] = [
         INSTR!(
             MOV,
             [Bits::literal(0b100010, 6), D, W],
@@ -260,7 +260,8 @@ lazy_static! {
             [DISP_HI],
             [DATA_LO],
             [DATA_HI]
-        )
+        ),
+        INSTR!(ADD, [Bits::literal(0b0000010, 7), W], [DATA_LO], [DATA_HI])
     ];
 }
 

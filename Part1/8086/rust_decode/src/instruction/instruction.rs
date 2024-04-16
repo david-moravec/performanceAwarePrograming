@@ -1,7 +1,8 @@
 use super::operand::{Displacement, Operand, OperandType, OperandTypeError, Size};
 use crate::assembled_instruction::*;
 use core::panic;
-use std::{fmt, iter::IntoIterator};
+use std::fmt;
+use std::iter::IntoIterator;
 
 #[derive(Debug)]
 pub enum DecodingError {
@@ -87,7 +88,7 @@ impl Instruction {
                 BitUsage::LITERAL => self.handle_literal_in_second_byte(),
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
                 BitUsage::REG => self.set_reg_operand(decoded_value),
-                BitUsage::Data(_) => self.set_immediate_operand(Some(decoded_value.into())),
+                BitUsage::Data(bit_order) => self.set_immediate_operand(Some(decoded_value.into()), bit_order),
                 BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order),
                 BitUsage::RM => Ok(rm = Some(decoded_value)),
                 BitUsage::MOD => Ok(mode = Some(decoded_value)),
@@ -117,12 +118,16 @@ impl Instruction {
                 self.set_reg_operand(0)?;
                 self.set_rm_operand(Some(0b110), Some(0b00)) // direct acces
             }
+            0b0000010 => {
+                self.set_reg_operand(0)?;
+                self.set_immediate_operand(None, BitOrder::LOW)
+            }
             _ => Ok(()),
         }
     }
 
     fn handle_literal_in_second_byte(&mut self) -> Result<(), DecodingError> {
-        self.set_immediate_operand(None)
+        self.set_immediate_operand(None, BitOrder::LOW)
     }
 
     fn should_process_bits(&self, bits: Bits) -> bool {
@@ -182,11 +187,7 @@ impl Instruction {
                 if self.should_process_bits(*bits) {
                     match bits.usage {
                         BitUsage::Data(bit_order) => {
-                            match self.set_immediate_operand(Some(decoded_value.into())) {
-                                Ok(_) => Ok(()),
-                                Err(DecodingError::FieldAlreadyDecodedError) => self.set_data(decoded_value, bit_order),
-                                Err(e) => Err(e),
-                            }
+                            self.set_immediate_operand(Some(decoded_value.into()), bit_order)
                         }
                         BitUsage::Disp(bit_order) => self.set_displacement(decoded_value, bit_order),
                         u => Err(
@@ -297,12 +298,19 @@ impl Instruction {
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
         }
     }
-    fn set_immediate_operand(&mut self, data: Option<u8>) -> Result<(), DecodingError> {
+    fn set_immediate_operand(
+        &mut self,
+        data: Option<u8>,
+        bit_order: BitOrder,
+    ) -> Result<(), DecodingError> {
         match (&self.operand_a, &self.operand_b) {
             (Some(_), None) => Ok(self.operand_b = Some(Operand::immediate(data, self.flags)?)),
             (None, Some(_)) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
             (None, None) => Ok(self.operand_a = Some(Operand::immediate(data, self.flags)?)),
-            _ => Err(DecodingError::FieldAlreadyDecodedError),
+            _ => self.set_data(
+                data.expect("Both operands are set tryied to set data but it was none"),
+                bit_order,
+            ),
         }
     }
 
@@ -326,14 +334,18 @@ impl fmt::Display for Instruction {
         let (dst, src) = self.operands_sorted();
 
         let mut src_size: String = "".to_string();
-        let dst_size: String = "".to_string();
+        let mut dst_size: String = "".to_string();
 
         match (
             dst.operand_type.as_ref().unwrap(),
             src.operand_type.as_ref().unwrap(),
         ) {
             (OperandType::MEMORY(_), OperandType::IMMEDIATE(size)) => {
-                src_size = format!("{:} ", size)
+                if self.operation == Operation::MOV {
+                    src_size = format!("{:} ", size)
+                } else {
+                    dst_size = format!("{:} ", size)
+                }
             }
             _ => (),
         };
