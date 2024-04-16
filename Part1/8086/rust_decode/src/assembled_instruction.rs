@@ -41,7 +41,7 @@ impl BitFlag {
 pub struct Bits {
     pub usage: BitUsage,
     size: u8,
-    value: Option<u8>,
+    pub value: Option<u8>,
     pub shift: Option<u8>,
 }
 
@@ -50,7 +50,7 @@ impl Bits {
         Bits {
             usage: BitUsage::LITERAL,
             value: Some(value),
-            shift: Some(8 - size),
+            shift: None,
             size,
         }
     }
@@ -202,6 +202,7 @@ macro_rules! INSTR {
 pub enum Operation {
     MOV,
     ADD,
+    SUB,
 }
 
 use std::fmt;
@@ -211,6 +212,7 @@ impl fmt::Display for Operation {
         let str_repr = match self {
             MOV => "mov",
             ADD => "add",
+            SUB => "sub",
         };
 
         write!(f, "{}", str_repr)
@@ -220,7 +222,25 @@ impl fmt::Display for Operation {
 use Operation::*;
 
 lazy_static! {
-    static ref INSTRUCTION_TABLE: [AssembledInstruction; 8] = [
+    pub static ref ADD_INSTR: AssembledInstruction = INSTR!(
+        ADD,
+        [Bits::literal(0b100000, 6), S, W],
+        [MOD, Bits::literal(0b000, 3), RM],
+        [DISP_LO],
+        [DISP_HI],
+        [DATA_LO],
+        [DATA_HI]
+    );
+    pub static ref SUB_INSTR: AssembledInstruction = INSTR!(
+        SUB,
+        [Bits::literal(0b100000, 6), S, W],
+        [MOD, Bits::literal(0b101, 3), RM],
+        [DISP_LO],
+        [DISP_HI],
+        [DATA_LO],
+        [DATA_HI]
+    );
+    static ref INSTRUCTION_TABLE: [AssembledInstruction; 11] = [
         INSTR!(
             MOV,
             [Bits::literal(0b100010, 6), D, W],
@@ -252,16 +272,17 @@ lazy_static! {
             [DISP_LO],
             [DISP_HI]
         ),
+        *ADD_INSTR,
+        INSTR!(ADD, [Bits::literal(0b0000010, 7), W], [DATA_LO], [DATA_HI]),
         INSTR!(
-            ADD,
-            [Bits::literal(0b100000, 6), S, W],
-            [MOD, Bits::literal(0b000, 3), RM],
+            SUB,
+            [Bits::literal(0b001010, 6), D, W],
+            [MOD, REG, RM],
             [DISP_LO],
-            [DISP_HI],
-            [DATA_LO],
-            [DATA_HI]
+            [DISP_HI]
         ),
-        INSTR!(ADD, [Bits::literal(0b0000010, 7), W], [DATA_LO], [DATA_HI])
+        *SUB_INSTR,
+        INSTR!(SUB, [Bits::literal(0b0010110, 7), W], [DATA_LO], [DATA_HI])
     ];
 }
 

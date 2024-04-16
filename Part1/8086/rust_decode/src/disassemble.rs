@@ -144,4 +144,14 @@ mod test {
     fn test_immediate_add_d() {
         test_instruction(vec![0x05, 0xe8, 0x03], "add ax, 1000")
     }
+
+    #[test]
+    fn test_immediate_sub_a() {
+        test_instruction(vec![0x83, 0xee, 0x02], "sub si, 2")
+    }
+
+    #[test]
+    fn test_immediate_sub_b() {
+        test_instruction(vec![0x2d, 0xe8, 0x03], "sub ax, 1000")
+    }
 }

@@ -28,7 +28,6 @@ impl From<OperandTypeError> for DecodingError {
 
 #[derive(Debug)]
 pub struct Instruction {
-    operation: Operation,
     operand_a: Option<Operand>,
     operand_b: Option<Operand>,
     flags: BitFlag,
@@ -41,7 +40,6 @@ impl Instruction {
         let first_byte: Byte = ass_instr.bytes[0].unwrap();
 
         let mut instr = Instruction {
-            operation: ass_instr.operation,
             operand_a: None,
             operand_b: None,
             flags: BitFlag::NOTHING,
@@ -73,6 +71,10 @@ impl Instruction {
         Ok(instr)
     }
 
+    fn operation(&self) -> Operation {
+        self.ass_instr.operation
+    }
+
     pub fn continue_disassembly(&mut self, byte: u8) -> Result<usize, DecodingError> {
         let second_byte: Byte = self.ass_instr.bytes[1]
             .ok_or(DecodingError::InvalidBitUsageError("Exp".to_string()))?;
@@ -85,7 +87,7 @@ impl Instruction {
             let decoded_value = bits.decode_value(byte);
 
             match bits.usage {
-                BitUsage::LITERAL => self.handle_literal_in_second_byte(),
+                BitUsage::LITERAL => self.handle_literal_in_second_byte(decoded_value),
                 BitUsage::Flag(flag) => self.set_flag(flag, decoded_value),
                 BitUsage::REG => self.set_reg_operand(decoded_value),
                 BitUsage::Data(bit_order) => self.set_immediate_operand(Some(decoded_value.into()), bit_order),
@@ -122,11 +124,33 @@ impl Instruction {
                 self.set_reg_operand(0)?;
                 self.set_immediate_operand(None, BitOrder::LOW)
             }
+            0b0010110 => {
+                self.set_reg_operand(0)?;
+                self.set_immediate_operand(None, BitOrder::LOW)
+            }
             _ => Ok(()),
         }
     }
 
-    fn handle_literal_in_second_byte(&mut self) -> Result<(), DecodingError> {
+    fn handle_literal_in_second_byte(&mut self, decoded_value: u8) -> Result<(), DecodingError> {
+        // Decide whether to use ADD, SUB, CMP for instruction beginning with 0b100000 literal
+        if self.ass_instr.bytes[0]
+            .map(|byte| byte.bits[0].map(|bit| bit.value).unwrap())
+            .unwrap()
+            .unwrap()
+            == 0b100000
+        {
+            match decoded_value {
+                0b000 => {
+                    self.ass_instr = *ADD_INSTR;
+                }
+                0b101 => {
+                    self.ass_instr = *SUB_INSTR;
+                }
+                _ => (),
+            }
+        }
+
         self.set_immediate_operand(None, BitOrder::LOW)
     }
 
@@ -341,7 +365,7 @@ impl fmt::Display for Instruction {
             src.operand_type.as_ref().unwrap(),
         ) {
             (OperandType::MEMORY(_), OperandType::IMMEDIATE(size)) => {
-                if self.operation == Operation::MOV {
+                if self.operation() == Operation::MOV {
                     src_size = format!("{:} ", size)
                 } else {
                     dst_size = format!("{:} ", size)
@@ -353,7 +377,11 @@ impl fmt::Display for Instruction {
         write!(
             f,
             "{} {}{}, {}{}",
-            self.operation, dst_size, dst, src_size, src
+            self.operation(),
+            dst_size,
+            dst,
+            src_size,
+            src
         )
     }
 }
@@ -371,12 +399,12 @@ mod test {
     fn test_instruction_new() {
         let instr = Instruction::new(TEST_INSTRUCTION.to_be_bytes()[0]).unwrap();
 
-        assert!(matches!(instr.operation, Operation::MOV));
+        assert!(matches!(instr.operation(), Operation::MOV));
         assert!(instr.flags.is_flag_toogled(BitFlag::W));
 
         let instr = Instruction::new(TEST_INSTRUCTION2.to_be_bytes()[0]).unwrap();
 
-        assert!(matches!(instr.operation, Operation::MOV));
+        assert!(matches!(instr.operation(), Operation::MOV));
         assert!(instr.flags.is_flag_toogled(BitFlag::W | BitFlag::D));
     }
 
