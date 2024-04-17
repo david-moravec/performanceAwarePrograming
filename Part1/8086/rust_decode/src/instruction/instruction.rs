@@ -128,6 +128,10 @@ impl Instruction {
                 self.set_reg_operand(0)?;
                 self.set_immediate_operand(None, BitOrder::LOW)
             }
+            0b0011110 => {
+                self.set_reg_operand(0)?;
+                self.set_immediate_operand(None, BitOrder::LOW)
+            }
             _ => Ok(()),
         }
     }
@@ -146,6 +150,9 @@ impl Instruction {
                 }
                 0b101 => {
                     self.ass_instr = *SUB_INSTR;
+                }
+                0b111 => {
+                    self.ass_instr = *CMP_INSTR;
                 }
                 _ => (),
             }
@@ -369,6 +376,13 @@ impl fmt::Display for Instruction {
                     src_size = format!("{:} ", size)
                 } else {
                     dst_size = format!("{:} ", size)
+                }
+            }
+            (OperandType::DIRECT_ACCESS(_), OperandType::IMMEDIATE(size)) => {
+                if self.operation() == Operation::CMP {
+                    dst_size = format!("{:} ", size)
+                } else {
+                    src_size = format!("{:} ", size)
                 }
             }
             _ => (),

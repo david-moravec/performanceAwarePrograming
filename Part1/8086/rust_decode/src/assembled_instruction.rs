@@ -203,6 +203,7 @@ pub enum Operation {
     MOV,
     ADD,
     SUB,
+    CMP,
 }
 
 use std::fmt;
@@ -213,6 +214,7 @@ impl fmt::Display for Operation {
             MOV => "mov",
             ADD => "add",
             SUB => "sub",
+            CMP => "cmp",
         };
 
         write!(f, "{}", str_repr)
@@ -240,7 +242,16 @@ lazy_static! {
         [DATA_LO],
         [DATA_HI]
     );
-    static ref INSTRUCTION_TABLE: [AssembledInstruction; 11] = [
+    pub static ref CMP_INSTR: AssembledInstruction = INSTR!(
+        CMP,
+        [Bits::literal(0b100000, 6), S, W],
+        [MOD, Bits::literal(0b111, 3), RM],
+        [DISP_LO],
+        [DISP_HI],
+        [DATA_LO],
+        [DATA_HI]
+    );
+    static ref INSTRUCTION_TABLE: [AssembledInstruction; 14] = [
         INSTR!(
             MOV,
             [Bits::literal(0b100010, 6), D, W],
@@ -282,7 +293,16 @@ lazy_static! {
             [DISP_HI]
         ),
         *SUB_INSTR,
-        INSTR!(SUB, [Bits::literal(0b0010110, 7), W], [DATA_LO], [DATA_HI])
+        INSTR!(SUB, [Bits::literal(0b0010110, 7), W], [DATA_LO], [DATA_HI]),
+        INSTR!(
+            CMP,
+            [Bits::literal(0b001110, 6), D, W],
+            [MOD, REG, RM],
+            [DISP_LO],
+            [DISP_HI]
+        ),
+        *CMP_INSTR,
+        INSTR!(CMP, [Bits::literal(0b0011110, 7), W], [DATA_LO], [DATA_HI])
     ];
 }
 

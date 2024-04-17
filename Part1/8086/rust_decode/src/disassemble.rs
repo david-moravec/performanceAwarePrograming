@@ -154,4 +154,19 @@ mod test {
     fn test_immediate_sub_b() {
         test_instruction(vec![0x2d, 0xe8, 0x03], "sub ax, 1000")
     }
+
+    #[test]
+    fn test_immediate_cmp() {
+        test_instruction(vec![0x3b, 0x18], "cmp bx, [bx + si]")
+    }
+
+    #[test]
+    fn test_immediate_cmp_a() {
+        test_instruction(vec![0x3d, 0xe8, 0x03], "cmp ax, 1000")
+    }
+
+    #[test]
+    fn test_immediate_cmp_b() {
+        test_instruction(vec![0x83, 0x3e, 0xe2, 0x12, 0x1d], "cmp word [4834], 29")
+    }
 }
