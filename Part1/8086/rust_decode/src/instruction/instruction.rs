@@ -71,7 +71,7 @@ impl Instruction {
         Ok(instr)
     }
 
-    fn operation(&self) -> Operation {
+    pub fn operation(&self) -> Operation {
         self.ass_instr.operation
     }
 
@@ -275,7 +275,7 @@ impl Instruction {
                 .unwrap()
     }
 
-    fn operands_sorted(&self) -> (&Operand, &Operand) {
+    pub fn operands_sorted(&self) -> (&Operand, &Operand) {
         let (dst, src): (&Operand, &Operand);
 
         let op_a = self.operand_a.as_ref().unwrap();

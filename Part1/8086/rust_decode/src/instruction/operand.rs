@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt};
 
 use crate::assembled_instruction::{AssembledInstruction, BitFlag, BitOrder, S};
+use crate::cpu::cpu::{CpuOperand, EffectiveAddress, Reg};
 use crate::instruction::instruction::DecodingError;
 
 #[derive(Debug)]
@@ -97,6 +98,24 @@ impl OperandType {
     }
 }
 
+impl OperandType {
+    fn try_from_mod(rm: u8, mode: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
+        match mode {
+            0b00 => {
+                if rm == 0b110 {
+                    Ok(OperandType::DirectAccess(Displacement::YES(Size::WORD)))
+                } else {
+                    Ok(OperandType::Memory(Displacement::NO))
+                }
+            }
+            0b01 => Ok(OperandType::Memory(Displacement::YES(Size::BYTE))),
+            0b10 => Ok(OperandType::Memory(Displacement::YES(Size::WORD))),
+            0b11 => Ok(OperandType::Register(Size::new(flags))),
+            _ => Err(UnknownModError),
+        }
+    }
+}
+
 lazy_static! {
     static ref REG_WORD: HashMap<u8, &'static str> = HashMap::from([
         (0b000, "ax"),
@@ -152,7 +171,7 @@ impl Displacement {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Size {
     BYTE,
     WORD,
@@ -196,24 +215,6 @@ pub enum OperandTypeError {
 }
 
 use OperandTypeError::*;
-
-impl OperandType {
-    fn try_from_mod(rm: u8, mode: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
-        match mode {
-            0b00 => {
-                if rm == 0b110 {
-                    Ok(OperandType::DirectAccess(Displacement::YES(Size::WORD)))
-                } else {
-                    Ok(OperandType::Memory(Displacement::NO))
-                }
-            }
-            0b01 => Ok(OperandType::Memory(Displacement::YES(Size::BYTE))),
-            0b10 => Ok(OperandType::Memory(Displacement::YES(Size::WORD))),
-            0b11 => Ok(OperandType::Register(Size::new(flags))),
-            _ => Err(UnknownModError),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Operand {
@@ -362,6 +363,22 @@ impl Operand {
                 }
             })
             .unwrap()
+    }
+
+    pub fn parse_for_cpu(&self) -> CpuOperand {
+        match self
+            .operand_type
+            .as_ref()
+            .expect("But, operand type must be known before parsing for CPU")
+        {
+            OperandType::Register(_) => CpuOperand::Register(Reg::new(self.value.unwrap())),
+            OperandType::Memory(_) => CpuOperand::Memory(EffectiveAddress::new(
+                self.value.unwrap(),
+                self.displacement,
+            )),
+            OperandType::Immediate(_) => CpuOperand::Immediate(self.data.unwrap()),
+            OperandType::DirectAccess(_) => CpuOperand::DirectAcces(self.displacement.unwrap()),
+        }
     }
 }
 

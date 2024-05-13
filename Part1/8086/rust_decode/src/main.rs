@@ -9,9 +9,11 @@ use std::io::Read;
 use std::{env, io};
 
 mod assembled_instruction;
+mod cpu;
 mod disassemble;
 mod instruction;
 
+use cpu::cpu::CPU;
 use disassemble::disassemble_bytes_in;
 
 const MEMORY_SIZE: usize = 1024 * 1024; //BYTES
@@ -75,9 +77,17 @@ fn main() {
     let disassembled_instructions =
         disassemble_bytes_in(buffer).expect("Disassembly of Instructions failed");
 
-    println!("bits 16");
+    if true {
+        let mut cpu = CPU::new();
 
-    for instruction in disassembled_instructions {
-        println!("{}", instruction);
+        for instruction in disassembled_instructions {
+            cpu.execute_instruction(instruction)
+        }
+    } else {
+        println!("bits 16");
+
+        for instruction in disassembled_instructions {
+            println!("{}", instruction);
+        }
     }
 }
