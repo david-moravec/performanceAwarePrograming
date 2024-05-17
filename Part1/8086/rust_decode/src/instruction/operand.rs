@@ -30,10 +30,10 @@ impl From<OperandToStrError> for OperandError {
 
 #[derive(Debug)]
 pub enum OperandType {
-    REGISTER(Size),
-    MEMORY(Displacement),
-    DIRECT_ACCESS(Displacement),
-    IMMEDIATE(Size),
+    Register(Size),
+    Memory(Displacement),
+    DirectAccess(Displacement),
+    Immediate(Size),
 }
 
 impl OperandType {
@@ -44,11 +44,11 @@ impl OperandType {
         data: Option<i16>,
     ) -> Result<String, OperandToStrError> {
         match self {
-            Self::REGISTER(size) => Ok(reg_encoding_table(*size)
+            Self::Register(size) => Ok(reg_encoding_table(*size)
                 .get(&value.unwrap())
                 .ok_or(OperandToStrError::RegisterValueError)?
                 .to_string()),
-            Self::MEMORY(displacement) => {
+            Self::Memory(displacement) => {
                 let eff_addr = EFFECTIVE_ADDR
                     .get(&value.unwrap())
                     .ok_or(OperandToStrError::EffectiveAddrValueError)?
@@ -67,11 +67,11 @@ impl OperandType {
                     }
                 }
             }
-            Self::DIRECT_ACCESS(_) => Ok(format!(
+            Self::DirectAccess(_) => Ok(format!(
                 "[{}]",
                 displacement_value.expect("Disaplacment should have valeu")
             )),
-            Self::IMMEDIATE(_) => {
+            Self::Immediate(_) => {
                 Ok(format!("{}", data.expect("Immediate must have data")).to_string())
             }
         }
@@ -79,8 +79,8 @@ impl OperandType {
 
     pub fn total_bytes_required(&self, flags: BitFlag, ass_instr: &AssembledInstruction) -> u8 {
         match self {
-            OperandType::REGISTER(_) => 0,
-            OperandType::IMMEDIATE(size) => {
+            OperandType::Register(_) => 0,
+            OperandType::Immediate(size) => {
                 if ass_instr.includes_bits(S) {
                     if flags.is_flag_toogled(BitFlag::S) {
                         size.byte_count() - 1
@@ -91,8 +91,8 @@ impl OperandType {
                     size.byte_count()
                 }
             }
-            OperandType::MEMORY(displacement) => displacement.byte_count(),
-            OperandType::DIRECT_ACCESS(_) => 2,
+            OperandType::Memory(displacement) => displacement.byte_count(),
+            OperandType::DirectAccess(_) => 2,
         }
     }
 }
@@ -202,14 +202,14 @@ impl OperandType {
         match mode {
             0b00 => {
                 if rm == 0b110 {
-                    Ok(OperandType::DIRECT_ACCESS(Displacement::YES(Size::WORD)))
+                    Ok(OperandType::DirectAccess(Displacement::YES(Size::WORD)))
                 } else {
-                    Ok(OperandType::MEMORY(Displacement::NO))
+                    Ok(OperandType::Memory(Displacement::NO))
                 }
             }
-            0b01 => Ok(OperandType::MEMORY(Displacement::YES(Size::BYTE))),
-            0b10 => Ok(OperandType::MEMORY(Displacement::YES(Size::WORD))),
-            0b11 => Ok(OperandType::REGISTER(Size::new(flags))),
+            0b01 => Ok(OperandType::Memory(Displacement::YES(Size::BYTE))),
+            0b10 => Ok(OperandType::Memory(Displacement::YES(Size::WORD))),
+            0b11 => Ok(OperandType::Register(Size::new(flags))),
             _ => Err(UnknownModError),
         }
     }
@@ -235,7 +235,7 @@ impl Operand {
 
     pub fn immediate(data: Option<u8>, flags: BitFlag) -> Result<Self, OperandTypeError> {
         Ok(Operand {
-            operand_type: Some(OperandType::IMMEDIATE(Size::new(flags))),
+            operand_type: Some(OperandType::Immediate(Size::new(flags))),
             value: None,
             displacement: None,
             data: data.map(|d| d.into()),
@@ -253,7 +253,7 @@ impl Operand {
 
     pub fn reg(value: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
         Ok(Operand {
-            operand_type: Some(OperandType::REGISTER(Size::new(flags))),
+            operand_type: Some(OperandType::Register(Size::new(flags))),
             value: Some(value),
             displacement: None,
             data: None,
@@ -262,7 +262,7 @@ impl Operand {
 
     pub fn signed_data(&self) -> Result<i16, DecodingError> {
         match self.operand_type {
-            Some(OperandType::IMMEDIATE(size)) => match size {
+            Some(OperandType::Immediate(size)) => match size {
                 Size::BYTE => {
                     let u_data = self.data.ok_or(DecodingError::FieldNotYetDecodedError)?;
 
@@ -281,7 +281,7 @@ impl Operand {
 
     pub fn signed_displacement(&self) -> Result<i16, DecodingError> {
         match self.operand_type {
-            Some(OperandType::MEMORY(Displacement::YES(size))) => match size {
+            Some(OperandType::Memory(Displacement::YES(size))) => match size {
                 Size::BYTE => {
                     let u_disp = self
                         .displacement
@@ -297,7 +297,7 @@ impl Operand {
                     .displacement
                     .ok_or(DecodingError::FieldNotYetDecodedError),
             },
-            Some(OperandType::DIRECT_ACCESS(_)) => self
+            Some(OperandType::DirectAccess(_)) => self
                 .displacement
                 .ok_or(DecodingError::FieldNotYetDecodedError),
             Some(_) => Err(OperandTypeError::UncompatibleOperandTypeError.into()),
@@ -344,17 +344,17 @@ impl Operand {
                 let bytes_required = op_type.total_bytes_required(flags, ass_instr);
 
                 match op_type {
-                    OperandType::REGISTER(_) => bytes_required,
-                    OperandType::MEMORY(Displacement::YES(_)) => match self.displacement {
+                    OperandType::Register(_) => bytes_required,
+                    OperandType::Memory(Displacement::YES(_)) => match self.displacement {
                         Some(_) => bytes_required - 1,
                         None => bytes_required,
                     },
-                    OperandType::MEMORY(Displacement::NO) => bytes_required,
-                    OperandType::IMMEDIATE(_) => match self.data {
+                    OperandType::Memory(Displacement::NO) => bytes_required,
+                    OperandType::Immediate(_) => match self.data {
                         Some(_) => bytes_required - 1,
                         None => bytes_required,
                     },
-                    OperandType::DIRECT_ACCESS(Displacement::YES(_)) => match self.displacement {
+                    OperandType::DirectAccess(Displacement::YES(_)) => match self.displacement {
                         Some(_) => bytes_required - 1,
                         None => bytes_required,
                     },
@@ -389,7 +389,7 @@ mod test {
     #[test]
     fn test_signed_displacement() {
         let op = Operand {
-            operand_type: Some(OperandType::MEMORY(Displacement::YES(Size::BYTE))),
+            operand_type: Some(OperandType::Memory(Displacement::YES(Size::BYTE))),
             data: None,
             displacement: Some(0x00db),
             value: None,

@@ -177,13 +177,13 @@ impl Instruction {
                     .unwrap();
 
                 match type_b {
-                    OperandType::REGISTER(_) => false,
-                    OperandType::MEMORY(Displacement::NO) => false,
-                    OperandType::MEMORY(Displacement::YES(size)) => match bit_order {
+                    OperandType::Register(_) => false,
+                    OperandType::Memory(Displacement::NO) => false,
+                    OperandType::Memory(Displacement::YES(size)) => match bit_order {
                         BitOrder::LOW => true,
                         BitOrder::HIGH => matches!(size, Size::WORD),
                     },
-                    OperandType::DIRECT_ACCESS(_) => true,
+                    OperandType::DirectAccess(_) => true,
                     _ => panic!("Expected only memory Operand"),
                 }
             }
@@ -286,7 +286,7 @@ impl Instruction {
         if self.flags.is_flag_toogled(BitFlag::D) {
             src = op_b;
             dst = op_a;
-        } else if matches!(b_type, OperandType::IMMEDIATE(_)) {
+        } else if matches!(b_type, OperandType::Immediate(_)) {
             src = op_b;
             dst = op_a;
         } else {
@@ -311,19 +311,19 @@ impl Instruction {
         let operand_a_type = operand_a.operand_type.as_ref().unwrap();
 
         match (operand_b_type, operand_a_type) {
-            (OperandType::MEMORY(_), OperandType::MEMORY(_)) => {
+            (OperandType::Memory(_), OperandType::Memory(_)) => {
                 panic!("Both operands are memory, aborting")
             }
-            (OperandType::MEMORY(_), _) => {
+            (OperandType::Memory(_), _) => {
                 operand_b.set_displacement(displacement_decoded, bit_order)
             }
-            (_, OperandType::MEMORY(_)) => {
+            (_, OperandType::Memory(_)) => {
                 operand_a.set_displacement(displacement_decoded, bit_order)
             }
-            (OperandType::DIRECT_ACCESS(_), _) => {
+            (OperandType::DirectAccess(_), _) => {
                 operand_b.set_displacement(displacement_decoded, bit_order)
             }
-            (_, OperandType::DIRECT_ACCESS(_)) => {
+            (_, OperandType::DirectAccess(_)) => {
                 operand_a.set_displacement(displacement_decoded, bit_order)
             }
             (_, _) => panic!("No opearnds are memory cannot set displacement"),
@@ -352,9 +352,9 @@ impl Instruction {
         let operand_a_type = operand_a.operand_type.as_ref().unwrap();
 
         match (operand_a_type, operand_b_type) {
-            (OperandType::IMMEDIATE(_), OperandType::IMMEDIATE(_)) => panic!(),
-            (OperandType::IMMEDIATE(_), _) => Ok(operand_a.set_data(data, bit_order).unwrap()),
-            (_, OperandType::IMMEDIATE(_)) => Ok(operand_b.set_data(data, bit_order).unwrap()),
+            (OperandType::Immediate(_), OperandType::Immediate(_)) => panic!(),
+            (OperandType::Immediate(_), _) => Ok(operand_a.set_data(data, bit_order).unwrap()),
+            (_, OperandType::Immediate(_)) => Ok(operand_b.set_data(data, bit_order).unwrap()),
             (_, _) => panic!("No opearnds are immediate cannot set data"),
         }
     }
@@ -371,14 +371,14 @@ impl fmt::Display for Instruction {
             dst.operand_type.as_ref().unwrap(),
             src.operand_type.as_ref().unwrap(),
         ) {
-            (OperandType::MEMORY(_), OperandType::IMMEDIATE(size)) => {
+            (OperandType::Memory(_), OperandType::Immediate(size)) => {
                 if self.operation() == Operation::MOV {
                     src_size = format!("{:} ", size)
                 } else {
                     dst_size = format!("{:} ", size)
                 }
             }
-            (OperandType::DIRECT_ACCESS(_), OperandType::IMMEDIATE(size)) => {
+            (OperandType::DirectAccess(_), OperandType::Immediate(size)) => {
                 if self.operation() == Operation::CMP {
                     dst_size = format!("{:} ", size)
                 } else {
@@ -432,11 +432,11 @@ mod test {
 
         assert!(matches!(
             instr.operand_a.unwrap().operand_type.unwrap(),
-            OperandType::REGISTER(Size::WORD)
+            OperandType::Register(Size::WORD)
         ));
         assert!(matches!(
             instr.operand_b.unwrap().operand_type.unwrap(),
-            OperandType::REGISTER(Size::WORD)
+            OperandType::Register(Size::WORD)
         ));
 
         let mut instr = Instruction::new(TEST_INSTRUCTION2.to_be_bytes()[0]).unwrap();
@@ -447,7 +447,7 @@ mod test {
 
         assert!(matches!(
             instr.operand_a.unwrap().operand_type.unwrap(),
-            OperandType::REGISTER(Size::WORD)
+            OperandType::Register(Size::WORD)
         ));
         let rm_type = instr
             .operand_b
@@ -458,7 +458,7 @@ mod test {
             .unwrap();
         assert!(matches!(
             rm_type,
-            OperandType::MEMORY(Displacement::YES(Size::WORD))
+            OperandType::Memory(Displacement::YES(Size::WORD))
         ));
     }
 
