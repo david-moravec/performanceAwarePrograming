@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::{self, write, Display};
+use std::fmt::{self, Display};
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;

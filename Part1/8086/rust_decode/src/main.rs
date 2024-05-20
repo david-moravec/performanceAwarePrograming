@@ -5,8 +5,9 @@ extern crate lazy_static;
 extern crate bitflags;
 
 use std::fs;
-use std::io::Read;
-use std::{env, io};
+use std::io::{self, Read};
+
+use clap::Parser;
 
 mod assembled_instruction;
 mod cpu;
@@ -64,20 +65,24 @@ impl InstructionBuffer {
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about=None)]
+struct Args {
+    path: String,
+
+    #[arg(short, long)]
+    exec: bool,
+}
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-    if args.len() == 1 {
-        println!("Please provide a binary file to disassemble");
-        return;
-    }
-
-    let buffer = InstructionBuffer::new(&args[1]).expect("Loading instruction to buffer failed");
+    let buffer = InstructionBuffer::new(&args.path).expect("Loading instruction to buffer failed");
 
     let disassembled_instructions =
         disassemble_bytes_in(buffer).expect("Disassembly of Instructions failed");
 
-    if true {
+    if args.exec {
         let mut cpu = CPU::new();
 
         for instruction in disassembled_instructions {
