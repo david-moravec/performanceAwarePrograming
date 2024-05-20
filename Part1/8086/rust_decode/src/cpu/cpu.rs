@@ -102,6 +102,10 @@ impl Registers {
         println!("{}:{:#x}->{:#x}", reg, old, new)
     }
 
+    pub fn content_of(&self, reg: Reg) -> i16 {
+        *self.regs.get(&reg).unwrap()
+    }
+
     fn reg_to_str(&self, reg: Reg) -> String {
         format!(
             "{}: {value:#x} ({value})",
@@ -161,18 +165,23 @@ impl CPU {
         }
     }
 
-    fn execute_mov(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
-        let value: i16;
-
+    fn source_value(&self, source: CpuOperand) -> i16 {
         match source {
-            CpuOperand::Immediate(val) => value = val,
+            CpuOperand::Immediate(val) => val,
+            CpuOperand::Register(reg) => self.registers.content_of(reg),
             _other => panic!("Not yet supported"),
-        };
+        }
+    }
 
+    fn put_value_in_destination(&mut self, destination: CpuOperand, value: i16) -> () {
         match destination {
             CpuOperand::Register(reg) => self.registers.mov(reg, value),
             other => panic!("mov not supported for {:?}", other),
         };
+    }
+
+    fn execute_mov(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.put_value_in_destination(destination, self.source_value(source))
     }
 }
 
