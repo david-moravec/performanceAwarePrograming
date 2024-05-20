@@ -61,9 +61,9 @@ impl Reg {
     pub fn new(value: u8) -> Self {
         match value {
             0 => Self::A,
-            1 => Self::B,
-            2 => Self::C,
-            3 => Self::D,
+            1 => Self::C,
+            2 => Self::D,
+            3 => Self::B,
             4 => Self::Sp,
             5 => Self::Bp,
             6 => Self::Si,
