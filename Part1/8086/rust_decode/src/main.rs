@@ -83,6 +83,8 @@ fn main() {
         for instruction in disassembled_instructions {
             cpu.execute_instruction(instruction)
         }
+
+        println!("{}", cpu);
     } else {
         println!("bits 16");
 

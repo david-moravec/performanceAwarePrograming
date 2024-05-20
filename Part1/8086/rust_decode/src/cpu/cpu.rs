@@ -1,5 +1,8 @@
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, write, Display};
+
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 use crate::assembled_instruction::Operation::*;
 use crate::instruction::instruction::Instruction;
@@ -42,7 +45,7 @@ impl EffectiveAddress {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, EnumIter)]
 pub enum Reg {
     A,
     B,
@@ -98,6 +101,30 @@ impl Registers {
 
         println!("{}:{:#x}->{:#x}", reg, old, new)
     }
+
+    fn reg_to_str(&self, reg: Reg) -> String {
+        format!(
+            "{}: {value:#x} ({value})",
+            reg,
+            value = self.regs.get(&reg).unwrap()
+        )
+    }
+}
+
+impl Display for Registers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut result = write!(f, "\nFinal Registers:\n");
+
+        for reg in Reg::iter() {
+            result = writeln!(f, "      {}", self.reg_to_str(reg));
+
+            if result.is_err() {
+                return result;
+            }
+        }
+
+        result
+    }
 }
 
 pub struct CPU {
@@ -146,5 +173,11 @@ impl CPU {
             CpuOperand::Register(reg) => self.registers.mov(reg, value),
             other => panic!("mov not supported for {:?}", other),
         };
+    }
+}
+
+impl Display for CPU {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.registers)
     }
 }

@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.4.0"
 bitflags = "2.5.0"
+strum = "0.26.2"
+strum_macros = "0.26.2"
