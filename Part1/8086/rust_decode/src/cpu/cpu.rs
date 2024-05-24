@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display};
 
+use bitflags::{bitflags, parser::to_writer};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::assembled_instruction::Operation::*;
 use crate::instruction::instruction::Instruction;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum CpuOperand {
     Register(Reg),
     DirectAcces(i16),
@@ -15,7 +16,7 @@ pub enum CpuOperand {
     Immediate(i16),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum EffectiveAddress {
     BxSi(i16),
     BxDi(i16),
@@ -91,6 +92,27 @@ impl fmt::Display for Reg {
     }
 }
 
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    struct CpuFlags: u8 {
+        const S = 0b001;
+        const Z = 0b010;
+        const ZERO =0b000;
+    }
+}
+
+impl CpuFlags {
+    pub fn is_flag_toogled(&self, flag: CpuFlags) -> bool {
+        *self & flag == flag
+    }
+}
+
+impl Display for CpuFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        to_writer(self, f)
+    }
+}
+
 struct Registers {
     regs: HashMap<Reg, i16>,
 }
@@ -99,7 +121,7 @@ impl Registers {
     pub fn mov(&mut self, reg: Reg, new: i16) -> () {
         let old = self.regs.insert(reg, new).unwrap_or(0);
 
-        println!("{}:{:#x}->{:#x}", reg, old, new)
+        print!("{}:{:#x}->{:#x}", reg, old, new)
     }
 
     pub fn content_of(&self, reg: Reg) -> i16 {
@@ -117,7 +139,7 @@ impl Registers {
 
 impl Display for Registers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut result = write!(f, "\nFinal Registers:\n");
+        let mut result = write!(f, "\n\nFinal Registers:\n");
 
         for reg in Reg::iter() {
             result = writeln!(f, "      {}", self.reg_to_str(reg));
@@ -133,6 +155,7 @@ impl Display for Registers {
 
 pub struct CPU {
     registers: Registers,
+    flags: CpuFlags,
 }
 
 impl CPU {
@@ -150,6 +173,7 @@ impl CPU {
 
         CPU {
             registers: Registers { regs },
+            flags: CpuFlags::ZERO,
         }
     }
     pub fn execute_instruction(&mut self, instr: Instruction) -> () {
@@ -157,15 +181,17 @@ impl CPU {
             (dst, src) => (dst.parse_for_cpu(), src.parse_for_cpu()),
         };
 
-        print!("{} ; ", instr);
+        print!("\n{} ; ", instr);
 
         match instr.operation() {
             MOV => self.execute_mov(dst, src),
-            op => panic!("Unsupported operation {}", op),
+            ADD => self.execute_add(dst, src),
+            SUB => self.execute_sub(dst, src),
+            CMP => self.execute_cmp(dst, src),
         }
     }
 
-    fn source_value(&self, source: CpuOperand) -> i16 {
+    fn value(&self, source: CpuOperand) -> i16 {
         match source {
             CpuOperand::Immediate(val) => val,
             CpuOperand::Register(reg) => self.registers.content_of(reg),
@@ -180,13 +206,50 @@ impl CPU {
         };
     }
 
+    fn flip_flag(&mut self, flag: CpuFlags) -> () {
+        print!(" flags:{}->", self.flags);
+        self.flags = self.flags | flag;
+        print!("{}", self.flags)
+    }
+
     fn execute_mov(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
-        self.put_value_in_destination(destination, self.source_value(source))
+        self.put_value_in_destination(destination, self.value(source))
+    }
+
+    fn execute_add(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.execute_and_save_to_dest(destination, source, |d, s| d + s)
+    }
+
+    fn execute_sub(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.execute_and_save_to_dest(destination, source, |d, s| d - s)
+    }
+
+    fn execute_cmp(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.execute_and_save_to_dest(destination, source, |d, _s| d)
+    }
+
+    fn execute_and_save_to_dest<F>(
+        &mut self,
+        destination: CpuOperand,
+        source: CpuOperand,
+        operation: F,
+    ) -> ()
+    where
+        F: Fn(i16, i16) -> i16,
+    {
+        let value = operation(self.value(destination), self.value(source));
+        self.put_value_in_destination(destination, value);
+
+        if value == 0 {
+            self.flip_flag(CpuFlags::Z)
+        } else if (value as u16) & 0x8000 != 0 {
+            self.flip_flag(CpuFlags::S)
+        }
     }
 }
 
 impl Display for CPU {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.registers)
+        write!(f, "{}\n   flags:{}", self.registers, self.flags)
     }
 }
