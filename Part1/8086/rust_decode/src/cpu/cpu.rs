@@ -206,44 +206,71 @@ impl CPU {
         };
     }
 
-    fn flip_flag(&mut self, flag: CpuFlags) -> () {
-        print!(" flags:{}->", self.flags);
-        self.flags = self.flags | flag;
-        print!("{}", self.flags)
-    }
-
-    fn execute_mov(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
-        self.put_value_in_destination(destination, self.value(source))
-    }
-
-    fn execute_add(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
-        self.execute_and_save_to_dest(destination, source, |d, s| d + s)
-    }
-
-    fn execute_sub(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
-        self.execute_and_save_to_dest(destination, source, |d, s| d - s)
-    }
-
-    fn execute_cmp(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
-        self.execute_and_save_to_dest(destination, source, |d, _s| d)
-    }
-
-    fn execute_and_save_to_dest<F>(
-        &mut self,
-        destination: CpuOperand,
-        source: CpuOperand,
-        operation: F,
-    ) -> ()
-    where
-        F: Fn(i16, i16) -> i16,
-    {
-        let value = operation(self.value(destination), self.value(source));
-        self.put_value_in_destination(destination, value);
+    fn flip_flags(&mut self, value: i16) -> () {
+        let flags_before = self.flags.clone();
 
         if value == 0 {
             self.flip_flag(CpuFlags::Z)
         } else if (value as u16) & 0x8000 != 0 {
             self.flip_flag(CpuFlags::S)
+        }
+
+        if value != 0 {
+            self.unflip_flag(CpuFlags::Z)
+        }
+
+        if value as u16 & 0x8000 == 0 {
+            self.unflip_flag(CpuFlags::S)
+        }
+
+        if flags_before != self.flags {
+            print!("   flags:{} -> {}", flags_before, self.flags)
+        }
+    }
+
+    fn flip_flag(&mut self, flag: CpuFlags) -> () {
+        self.flags = self.flags | flag;
+    }
+
+    fn unflip_flag(&mut self, flag: CpuFlags) -> () {
+        self.flags = self.flags & !flag
+    }
+
+    fn execute_mov(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.execute(destination, source, |_d, s| s, true, false)
+    }
+
+    fn execute_add(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.execute(destination, source, |d, s| d + s, true, true)
+    }
+
+    fn execute_sub(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.execute(destination, source, |d, s| d - s, true, true)
+    }
+
+    fn execute_cmp(&mut self, destination: CpuOperand, source: CpuOperand) -> () {
+        self.execute(destination, source, |d, s| d - s, false, true)
+    }
+
+    fn execute<F>(
+        &mut self,
+        destination: CpuOperand,
+        source: CpuOperand,
+        operation: F,
+        save_to_dest: bool,
+        check_flags: bool,
+    ) -> ()
+    where
+        F: Fn(i16, i16) -> i16,
+    {
+        let value = operation(self.value(destination), self.value(source));
+
+        if save_to_dest {
+            self.put_value_in_destination(destination, value);
+        }
+
+        if check_flags {
+            self.flip_flags(value)
         }
     }
 }
