@@ -188,6 +188,7 @@ impl CPU {
             ADD => self.execute_add(dst, src),
             SUB => self.execute_sub(dst, src),
             CMP => self.execute_cmp(dst, src),
+            _ => todo!(),
         }
     }
 

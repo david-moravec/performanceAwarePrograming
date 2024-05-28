@@ -302,6 +302,16 @@ impl Instruction {
         displacement_decoded: u8,
         bit_order: BitOrder,
     ) -> Result<(), DecodingError> {
+        match (&self.operand_a, &self.operand_b) {
+            (None, None) => {
+                let (operand_a, operand_b) = Operand::jump_operands(displacement_decoded);
+                self.operand_a = Some(operand_a);
+                self.operand_b = Some(operand_b);
+                return Ok(());
+            }
+            _ => (),
+        }
+
         let operand_b = self.operand_b.as_mut().expect("Operand must be set");
         let operand_a = self.operand_a.as_mut().expect("Operand Must be set");
         let operand_b_type = operand_b

@@ -35,6 +35,8 @@ pub enum OperandType {
     Memory(Displacement),
     DirectAccess(Displacement),
     Immediate(Size),
+    Jump,
+    NotUsed,
 }
 
 impl OperandType {
@@ -75,6 +77,8 @@ impl OperandType {
             Self::Immediate(_) => {
                 Ok(format!("{}", data.expect("Immediate must have data")).to_string())
             }
+            Self::Jump => Ok(format!("{}", displacement_value.unwrap())),
+            Self::NotUsed => Ok("".to_string()),
         }
     }
 
@@ -94,6 +98,8 @@ impl OperandType {
             }
             OperandType::Memory(displacement) => displacement.byte_count(),
             OperandType::DirectAccess(_) => 2,
+            OperandType::Jump => 0,
+            OperandType::NotUsed => 0,
         }
     }
 }
@@ -252,6 +258,23 @@ impl Operand {
         })
     }
 
+    pub fn jump_operands(displacement: u8) -> (Operand, Operand) {
+        let op_a = Operand {
+            operand_type: Some(OperandType::Jump),
+            value: None,
+            displacement: Some(displacement.into()),
+            data: None,
+        };
+        let op_b = Operand {
+            operand_type: Some(OperandType::NotUsed),
+            value: None,
+            displacement: None,
+            data: None,
+        };
+
+        (op_a, op_b)
+    }
+
     pub fn reg(value: u8, flags: BitFlag) -> Result<Self, OperandTypeError> {
         Ok(Operand {
             operand_type: Some(OperandType::Register(Size::new(flags))),
@@ -281,19 +304,19 @@ impl Operand {
     }
 
     pub fn signed_displacement(&self) -> Result<i16, DecodingError> {
+        fn sign_extend(displacement: Option<i16>) -> Result<i16, DecodingError> {
+            let u_disp = displacement.ok_or(DecodingError::FieldNotYetDecodedError)?;
+
+            if u_disp & 0x80 > 0 {
+                Ok((u_disp | 0b11111111 << 8).try_into().unwrap())
+            } else {
+                Ok((u_disp | 0x0000).try_into().unwrap())
+            }
+        }
+
         match self.operand_type {
             Some(OperandType::Memory(Displacement::YES(size))) => match size {
-                Size::BYTE => {
-                    let u_disp = self
-                        .displacement
-                        .ok_or(DecodingError::FieldNotYetDecodedError)?;
-
-                    if u_disp & 0x80 > 0 {
-                        Ok((u_disp | 0b11111111 << 8).try_into().unwrap())
-                    } else {
-                        Ok((u_disp | 0x0000).try_into().unwrap())
-                    }
-                }
+                Size::BYTE => sign_extend(self.displacement),
                 Size::WORD => self
                     .displacement
                     .ok_or(DecodingError::FieldNotYetDecodedError),
@@ -301,6 +324,7 @@ impl Operand {
             Some(OperandType::DirectAccess(_)) => self
                 .displacement
                 .ok_or(DecodingError::FieldNotYetDecodedError),
+            Some(OperandType::Jump) => sign_extend(self.displacement),
             Some(_) => Err(OperandTypeError::UncompatibleOperandTypeError.into()),
             None => Err(DecodingError::FieldNotYetDecodedError),
         }
@@ -378,6 +402,8 @@ impl Operand {
             )),
             OperandType::Immediate(_) => CpuOperand::Immediate(self.data.unwrap()),
             OperandType::DirectAccess(_) => CpuOperand::DirectAcces(self.displacement.unwrap()),
+            OperandType::NotUsed => todo!(),
+            OperandType::Jump => todo!(),
         }
     }
 }

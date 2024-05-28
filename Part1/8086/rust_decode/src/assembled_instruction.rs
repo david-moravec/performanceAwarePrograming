@@ -204,6 +204,26 @@ pub enum Operation {
     ADD,
     SUB,
     CMP,
+    JNZ,
+    JE,
+    JL,
+    JLE,
+    JB,
+    JBE,
+    JP,
+    JO,
+    JS,
+    JNL,
+    JG,
+    JNB,
+    JA,
+    JNP,
+    JNO,
+    JNS,
+    LOOP,
+    LOOPZ,
+    LOOPNZ,
+    JCXZ,
 }
 
 use std::fmt;
@@ -215,6 +235,26 @@ impl fmt::Display for Operation {
             ADD => "add",
             SUB => "sub",
             CMP => "cmp",
+            JNZ => "jnz",
+            JE => "je",
+            JL => "jl",
+            JLE => "jle",
+            JB => "jb",
+            JBE => "jbe",
+            JP => "jp",
+            JO => "jo",
+            JS => "js",
+            JNL => "jnl",
+            JG => "jg",
+            JNB => "jnb",
+            JA => "ja",
+            JNP => "jnp",
+            JNO => "jno",
+            JNS => "jns",
+            LOOP => "loop",
+            LOOPZ => "loopz",
+            LOOPNZ => "loopnz",
+            JCXZ => "jcxz",
         };
 
         write!(f, "{}", str_repr)
@@ -251,7 +291,7 @@ lazy_static! {
         [DATA_LO],
         [DATA_HI]
     );
-    static ref INSTRUCTION_TABLE: [AssembledInstruction; 14] = [
+    static ref INSTRUCTION_TABLE: [AssembledInstruction; 35] = [
         INSTR!(
             MOV,
             [Bits::literal(0b100010, 6), D, W],
@@ -302,7 +342,28 @@ lazy_static! {
             [DISP_HI]
         ),
         *CMP_INSTR,
-        INSTR!(CMP, [Bits::literal(0b0011110, 7), W], [DATA_LO], [DATA_HI])
+        INSTR!(CMP, [Bits::literal(0b0011110, 7), W], [DATA_LO], [DATA_HI]),
+        INSTR!(CMP, [Bits::literal(0b00000000, 8)], [DISP_LO]),
+        INSTR!(JNZ, [Bits::literal(0b01110101, 8)], [DISP_LO]),
+        INSTR!(JE, [Bits::literal(0b01110100, 8)], [DISP_LO]),
+        INSTR!(JL, [Bits::literal(0b01111100, 8)], [DISP_LO]),
+        INSTR!(JLE, [Bits::literal(0b01111110, 8)], [DISP_LO]),
+        INSTR!(JB, [Bits::literal(0b01110010, 8)], [DISP_LO]),
+        INSTR!(JBE, [Bits::literal(0b01110110, 8)], [DISP_LO]),
+        INSTR!(JP, [Bits::literal(0b01111010, 8)], [DISP_LO]),
+        INSTR!(JO, [Bits::literal(0b01110000, 8)], [DISP_LO]),
+        INSTR!(JS, [Bits::literal(0b01111000, 8)], [DISP_LO]),
+        INSTR!(JNL, [Bits::literal(0b01111101, 8)], [DISP_LO]),
+        INSTR!(JG, [Bits::literal(0b01111111, 8)], [DISP_LO]),
+        INSTR!(JNB, [Bits::literal(0b01110011, 8)], [DISP_LO]),
+        INSTR!(JA, [Bits::literal(0b01110111, 8)], [DISP_LO]),
+        INSTR!(JNP, [Bits::literal(0b01111011, 8)], [DISP_LO]),
+        INSTR!(JNO, [Bits::literal(0b01110001, 8)], [DISP_LO]),
+        INSTR!(JNS, [Bits::literal(0b01111001, 8)], [DISP_LO]),
+        INSTR!(LOOP, [Bits::literal(0b11100010, 8)], [DISP_LO]),
+        INSTR!(LOOPZ, [Bits::literal(0b11100001, 8)], [DISP_LO]),
+        INSTR!(LOOPNZ, [Bits::literal(0b11100000, 8)], [DISP_LO]),
+        INSTR!(JCXZ, [Bits::literal(0b11100011, 8)], [DISP_LO]),
     ];
 }
 
