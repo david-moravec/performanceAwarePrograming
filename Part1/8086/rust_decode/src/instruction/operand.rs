@@ -402,8 +402,8 @@ impl Operand {
             )),
             OperandType::Immediate(_) => CpuOperand::Immediate(self.data.unwrap()),
             OperandType::DirectAccess(_) => CpuOperand::DirectAcces(self.displacement.unwrap()),
-            OperandType::NotUsed => todo!(),
-            OperandType::Jump => todo!(),
+            OperandType::Jump => CpuOperand::Jump(self.signed_displacement().unwrap()),
+            OperandType::NotUsed => CpuOperand::NotUsed,
         }
     }
 }

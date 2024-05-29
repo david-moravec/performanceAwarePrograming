@@ -27,35 +27,29 @@ impl From<BufferEndReachedError> for DisassemblyError {
     }
 }
 
-type DisassemblyResult<T> = Result<T, DisassemblyError>;
+pub type DisassemblyResult<T> = Result<T, DisassemblyError>;
 
-pub fn disassemble_instruction(
+pub fn disassemble_next_instruction(
     buffer: &mut InstructionBuffer,
-) -> DisassemblyResult<(Instruction, usize)> {
+) -> DisassemblyResult<Instruction> {
     let mut instr = Instruction::new(buffer.next_byte()?)?;
-    let mut bytes_processed: usize = 1;
 
     let n_of_bytes_needed = instr.continue_disassembly(buffer.next_byte()?)?;
-    bytes_processed += 1;
 
     if n_of_bytes_needed == 0 {
-        return Ok((instr, bytes_processed));
+        return Ok(instr);
     }
 
     instr.finalize_disassembly(buffer.next_n_bytes(n_of_bytes_needed.into())?)?;
-    bytes_processed += n_of_bytes_needed;
 
-    Ok((instr, bytes_processed))
+    Ok(instr)
 }
 
 pub fn disassemble_bytes_in(mut buffer: InstructionBuffer) -> DisassemblyResult<Vec<Instruction>> {
-    let mut current_byte = 0;
     let mut instructions: Vec<Instruction> = Vec::with_capacity(MEMORY_SIZE / 2);
 
-    while current_byte < buffer.bytes_loaded {
-        let (instr, bytes_processed) = disassemble_instruction(&mut buffer)?;
-        instructions.push(instr);
-        current_byte += bytes_processed;
+    while !buffer.is_at_the_end() {
+        instructions.push(disassemble_next_instruction(&mut buffer)?);
     }
 
     Ok(instructions)
@@ -72,7 +66,7 @@ mod test {
             bytes_loaded: bytes.len(),
         };
 
-        let (instruction, bytes_processed) = disassemble_instruction(&mut buffer).unwrap();
+        let (instruction, bytes_processed) = disassemble_next_instruction(&mut buffer).unwrap();
 
         println!("{:?}", instruction);
 

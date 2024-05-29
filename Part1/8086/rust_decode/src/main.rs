@@ -63,6 +63,20 @@ impl InstructionBuffer {
     pub fn next_byte(&mut self) -> Result<u8, BufferEndReachedError> {
         Ok(self.next_n_bytes(1)?[0])
     }
+
+    pub fn jump_by(&mut self, n: i16) -> () {
+        let new = self.last_read as i64 + n as i64;
+
+        if new < 0 {
+            panic!("Instruction Buffer overflow")
+        } else {
+            self.last_read = new as usize
+        }
+    }
+
+    pub fn is_at_the_end(&self) -> bool {
+        self.last_read >= self.bytes_loaded
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -79,21 +93,17 @@ fn main() {
 
     let buffer = InstructionBuffer::new(&args.path).expect("Loading instruction to buffer failed");
 
-    let disassembled_instructions =
-        disassemble_bytes_in(buffer).expect("Disassembly of Instructions failed");
-
     if args.exec {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::new(buffer);
 
-        for instruction in disassembled_instructions {
-            cpu.execute_instruction(instruction)
-        }
+        cpu.execute_instructions().unwrap();
 
         println!("{}", cpu);
     } else {
         println!("bits 16");
 
-        for instruction in disassembled_instructions {
+        for instruction in disassemble_bytes_in(buffer).expect("Disassembly of Instructions failed")
+        {
             println!("{}", instruction);
         }
     }

@@ -6,7 +6,8 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::assembled_instruction::Operation::*;
-use crate::instruction::instruction::Instruction;
+use crate::disassemble::{disassemble_next_instruction, DisassemblyResult};
+use crate::InstructionBuffer;
 
 #[derive(Debug, Clone, Copy)]
 pub enum CpuOperand {
@@ -14,6 +15,8 @@ pub enum CpuOperand {
     DirectAcces(i16),
     Memory(EffectiveAddress),
     Immediate(i16),
+    Jump(i16),
+    NotUsed,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -156,10 +159,11 @@ impl Display for Registers {
 pub struct CPU {
     registers: Registers,
     flags: CpuFlags,
+    buffer: InstructionBuffer,
 }
 
 impl CPU {
-    pub fn new() -> Self {
+    pub fn new(buffer: InstructionBuffer) -> Self {
         let regs = HashMap::from([
             (Reg::A, 0),
             (Reg::B, 0),
@@ -174,20 +178,38 @@ impl CPU {
         CPU {
             registers: Registers { regs },
             flags: CpuFlags::ZERO,
+            buffer,
         }
     }
-    pub fn execute_instruction(&mut self, instr: Instruction) -> () {
+
+    pub fn execute_instructions(&mut self) -> DisassemblyResult<()> {
+        while !self.buffer.is_at_the_end() {
+            self.execute_next_instruction()?;
+        }
+
+        Ok(())
+    }
+
+    fn execute_next_instruction(&mut self) -> DisassemblyResult<()> {
+        let old_ip = self.buffer.last_read;
+
+        let instr = disassemble_next_instruction(&mut self.buffer)?;
+
         let (dst, src) = match instr.operands_sorted() {
             (dst, src) => (dst.parse_for_cpu(), src.parse_for_cpu()),
         };
 
-        print!("\n{} ; ", instr);
+        print!(
+            "\n{} ; ip:{:#x}->{:#x} ",
+            instr, old_ip, self.buffer.last_read
+        );
 
         match instr.operation() {
-            MOV => self.execute_mov(dst, src),
-            ADD => self.execute_add(dst, src),
-            SUB => self.execute_sub(dst, src),
-            CMP => self.execute_cmp(dst, src),
+            MOV => Ok(self.execute_mov(dst, src)),
+            ADD => Ok(self.execute_add(dst, src)),
+            SUB => Ok(self.execute_sub(dst, src)),
+            CMP => Ok(self.execute_cmp(dst, src)),
+            JNZ => Ok(self.execute_jnz(src)),
             _ => todo!(),
         }
     }
@@ -196,14 +218,14 @@ impl CPU {
         match source {
             CpuOperand::Immediate(val) => val,
             CpuOperand::Register(reg) => self.registers.content_of(reg),
-            _other => panic!("Not yet supported"),
+            _ => todo!(),
         }
     }
 
     fn put_value_in_destination(&mut self, destination: CpuOperand, value: i16) -> () {
         match destination {
             CpuOperand::Register(reg) => self.registers.mov(reg, value),
-            other => panic!("mov not supported for {:?}", other),
+            _ => todo!(),
         };
     }
 
@@ -253,6 +275,17 @@ impl CPU {
         self.execute(destination, source, |d, s| d - s, false, true)
     }
 
+    fn execute_jnz(&mut self, jump_operand: CpuOperand) -> () {
+        match jump_operand {
+            CpuOperand::Jump(jmp) => {
+                if !self.flags.is_flag_toogled(CpuFlags::Z) {
+                    self.buffer.jump_by(jmp);
+                }
+            }
+            _ => panic!("Not a jump instruction"),
+        }
+    }
+
     fn execute<F>(
         &mut self,
         destination: CpuOperand,
@@ -278,6 +311,10 @@ impl CPU {
 
 impl Display for CPU {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}\n   flags:{}", self.registers, self.flags)
+        write!(
+            f,
+            "{}      ip: {:#x} ({})\n   flags:{}",
+            self.registers, self.buffer.last_read, self.buffer.last_read, self.flags
+        )
     }
 }
