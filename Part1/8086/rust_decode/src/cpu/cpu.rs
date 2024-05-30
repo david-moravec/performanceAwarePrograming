@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display};
+use std::u16;
 
 use bitflags::{bitflags, parser::to_writer};
 use strum::IntoEnumIterator;
@@ -8,15 +9,21 @@ use strum_macros::EnumIter;
 use crate::assembled_instruction::Operation::*;
 use crate::disassemble::{disassemble_next_instruction, DisassemblyResult};
 use crate::InstructionBuffer;
+use crate::MEMORY_SIZE;
 
 #[derive(Debug, Clone, Copy)]
 pub enum CpuOperand {
     Register(Reg),
-    DirectAcces(i16),
-    Memory(EffectiveAddress),
+    Memory(Access),
     Immediate(i16),
     Jump(i16),
     NotUsed,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Access {
+    Address(EffectiveAddress),
+    Direct(usize),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -156,10 +163,35 @@ impl Display for Registers {
     }
 }
 
+struct Memory {
+    mem: Vec<u8>,
+}
+
+impl Memory {
+    pub fn new() -> Self {
+        Memory {
+            mem: vec![0 as u8; MEMORY_SIZE],
+        }
+    }
+
+    fn value_at(&self, index: usize) -> i16 {
+        let low = self.mem[index];
+        let high = self.mem[index + 1];
+
+        ((high as i16) << 8) | low as i16
+    }
+
+    fn save_value_at(&mut self, index: usize, value: i16) -> () {
+        self.mem[index] = value as u8;
+        self.mem[index + 1] = (value >> 8) as u8;
+    }
+}
+
 pub struct CPU {
     registers: Registers,
     flags: CpuFlags,
     buffer: InstructionBuffer,
+    memory: Memory,
 }
 
 impl CPU {
@@ -179,6 +211,9 @@ impl CPU {
             registers: Registers { regs },
             flags: CpuFlags::ZERO,
             buffer,
+            memory: Memory {
+                mem: vec![0 as u8; MEMORY_SIZE],
+            },
         }
     }
 
@@ -218,15 +253,60 @@ impl CPU {
         match source {
             CpuOperand::Immediate(val) => val,
             CpuOperand::Register(reg) => self.registers.content_of(reg),
+            CpuOperand::Memory(access) => self.memory.value_at(self.access_to_index(access)),
             _ => todo!(),
         }
+    }
+
+    fn access_to_index(&self, access: Access) -> usize {
+        match access {
+            Access::Direct(index) => index,
+            Access::Address(addr) => self.address_to_index(addr),
+        }
+    }
+
+    fn address_to_index(&self, address: EffectiveAddress) -> usize {
+        let result = match address {
+            EffectiveAddress::Si(displacement) => self.registers.content_of(Reg::Si) + displacement,
+            EffectiveAddress::Di(displacement) => self.registers.content_of(Reg::Di) + displacement,
+            EffectiveAddress::Bp(displacement) => self.registers.content_of(Reg::Bp) + displacement,
+            EffectiveAddress::Bx(displacement) => self.registers.content_of(Reg::B) + displacement,
+            EffectiveAddress::BpSi(displacement) => {
+                self.registers.content_of(Reg::Bp)
+                    + self.registers.content_of(Reg::Si)
+                    + displacement
+            }
+            EffectiveAddress::BxSi(displacement) => {
+                self.registers.content_of(Reg::B)
+                    + self.registers.content_of(Reg::Si)
+                    + displacement
+            }
+            EffectiveAddress::BxDi(displacement) => {
+                self.registers.content_of(Reg::B)
+                    + self.registers.content_of(Reg::Di)
+                    + displacement
+            }
+            EffectiveAddress::BpDi(displacement) => {
+                self.registers.content_of(Reg::Bp)
+                    + self.registers.content_of(Reg::Di)
+                    + displacement
+            }
+        };
+
+        result.try_into().unwrap()
     }
 
     fn put_value_in_destination(&mut self, destination: CpuOperand, value: i16) -> () {
         match destination {
             CpuOperand::Register(reg) => self.registers.mov(reg, value),
+            CpuOperand::Memory(access) => self.save_in_mem(access, value),
             _ => todo!(),
         };
+    }
+
+    fn save_in_mem(&mut self, access: Access, value: i16) -> () {
+        self.memory
+            .save_value_at(self.access_to_index(access), value)
     }
 
     fn flip_flags(&mut self, value: i16) -> () {

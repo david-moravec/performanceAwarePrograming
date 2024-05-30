@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt};
 
 use crate::assembled_instruction::{AssembledInstruction, BitFlag, BitOrder, S};
-use crate::cpu::cpu::{CpuOperand, EffectiveAddress, Reg};
+use crate::cpu::cpu::{Access, CpuOperand, EffectiveAddress, Reg};
 use crate::instruction::instruction::DecodingError;
 
 #[derive(Debug)]
@@ -396,12 +396,14 @@ impl Operand {
             .expect("But, operand type must be known before parsing for CPU")
         {
             OperandType::Register(_) => CpuOperand::Register(Reg::new(self.value.unwrap())),
-            OperandType::Memory(_) => CpuOperand::Memory(EffectiveAddress::new(
+            OperandType::Memory(_) => CpuOperand::Memory(Access::Address(EffectiveAddress::new(
                 self.value.unwrap(),
                 self.displacement,
-            )),
+            ))),
             OperandType::Immediate(_) => CpuOperand::Immediate(self.data.unwrap()),
-            OperandType::DirectAccess(_) => CpuOperand::DirectAcces(self.displacement.unwrap()),
+            OperandType::DirectAccess(_) => CpuOperand::Memory(Access::Direct(
+                self.displacement.unwrap().try_into().unwrap(),
+            )),
             OperandType::Jump => CpuOperand::Jump(self.signed_displacement().unwrap()),
             OperandType::NotUsed => CpuOperand::NotUsed,
         }
