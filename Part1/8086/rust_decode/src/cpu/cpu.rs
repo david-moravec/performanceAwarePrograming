@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display};
+use std::fs::File;
+use std::io::Write;
 use std::u16;
 
 use bitflags::{bitflags, parser::to_writer};
@@ -247,6 +249,12 @@ impl CPU {
             JNZ => Ok(self.execute_jnz(src)),
             _ => todo!(),
         }
+    }
+
+    pub fn dump_memory(&self) -> std::io::Result<()> {
+        let mut file = File::create("memory_dump.data")?;
+        file.write_all(&self.memory.mem)?;
+        Ok(())
     }
 
     fn value(&self, source: CpuOperand) -> i16 {

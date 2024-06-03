@@ -86,6 +86,9 @@ struct Args {
 
     #[arg(short, long)]
     exec: bool,
+
+    #[arg(short, long)]
+    dump: bool,
 }
 
 fn main() {
@@ -99,6 +102,10 @@ fn main() {
         cpu.execute_instructions().unwrap();
 
         println!("{}", cpu);
+
+        if args.dump {
+            cpu.dump_memory().expect("Dumping of memory failed")
+        }
     } else {
         println!("bits 16");
 
