@@ -1,5 +1,6 @@
 mod generator;
 mod haversine;
+mod parser;
 
 use std::{fs::File, io::Write};
 
