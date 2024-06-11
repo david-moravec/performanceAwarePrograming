@@ -1,6 +1,6 @@
 use core::fmt;
 use rand::Rng;
-use std::ops::RangeInclusive;
+use std::{iter, ops::RangeInclusive};
 
 use crate::{haversine::reference_haversine, EARTH_RAIDUS};
 
@@ -55,14 +55,10 @@ fn generate_y() -> f64 {
     rand::thread_rng().gen_range(Y_RANGE)
 }
 
-pub fn generate_pairs(n: usize, seed: i64, uniform: bool) -> Vec<CoordinatePair> {
-    let mut result: Vec<CoordinatePair> = vec![];
+pub fn generate_pairs(n: usize) -> Vec<CoordinatePair> {
+    iter::repeat_with(|| generate_pair()).take(n).collect()
+}
 
-    for _ in 0..n {
-        result.push(generate_pair(seed, uniform));
-    }
-
-    result
 }
 
 pub fn pairs_to_str(pairs: &Vec<CoordinatePair>) -> String {
