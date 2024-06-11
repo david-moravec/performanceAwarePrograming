@@ -14,21 +14,18 @@ struct Args {
     n: usize,
 
     #[arg(short, long)]
-    seed: i64,
-
-    #[arg(short, long)]
     uniform: bool,
 }
 
 fn main() {
     let args = Args::parse();
-    let pairs = generate_pairs(args.n, args.seed, args.uniform);
+    let pairs = generate_pairs(args.n);
     let answers = generate_answers(&pairs);
 
     let expected_sum = answers.last().cloned().unwrap();
 
     let filename_json: String = format!("data_{}_flex.json", args.n);
-    let filename_answer: String = format!("data_{}_answer.json", args.n);
+    let filename_answer: String = format!("data_{}_answer.f64", args.n);
 
     File::create(filename_json)
         .unwrap()
@@ -44,7 +41,6 @@ fn main() {
         "Method: {}",
         if args.uniform { "Uniform" } else { "Cluster" }
     );
-    println!("Random seed: {}", args.seed);
     println!("Pair count: {}", args.n);
     println!("Expected sum: {}", expected_sum);
 }

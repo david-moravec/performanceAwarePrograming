@@ -20,6 +20,7 @@ pub fn coor_pair_to_str(coord_pair: &CoordinatePair) -> String {
 }
 
 fn generate_pair(_seed: i64, _uniform: bool) -> CoordinatePair {
+fn generate_pair() -> CoordinatePair {
     ((generate_x(), generate_y()), (generate_x(), generate_y()))
 }
 
@@ -47,12 +48,16 @@ where
         .join("\n")
 }
 
+fn generate_from_range(range: RangeInclusive<f64>) -> f64 {
+    rand::thread_rng().gen_range(range)
+}
+
 fn generate_x() -> f64 {
-    rand::thread_rng().gen_range(X_RANGE)
+    generate_from_range(X_RANGE)
 }
 
 fn generate_y() -> f64 {
-    rand::thread_rng().gen_range(Y_RANGE)
+    generate_from_range(Y_RANGE)
 }
 
 pub fn generate_pairs(n: usize) -> Vec<CoordinatePair> {
@@ -84,6 +89,7 @@ mod test {
     #[test]
     fn test_generate_pairs() {
         let pairs = generate_pairs(20, 8, true);
+        let pairs = generate_pairs(20);
         assert_eq!(pairs.len(), 20)
     }
 
