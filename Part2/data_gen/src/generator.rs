@@ -1,15 +1,42 @@
 use core::fmt;
-use rand::Rng;
+use rand::{rngs::ThreadRng, Rng};
 use std::{iter, ops::RangeInclusive};
 
 use crate::{haversine::reference_haversine, EARTH_RAIDUS};
 
 const X_RANGE: RangeInclusive<f64> = -180.0..=180.0;
 const Y_RANGE: RangeInclusive<f64> = -90.0..=90.0;
+const CLUSTER_COUNT: usize = 16;
 
 pub type Pair<T> = (T, T);
 pub type Coordinate = Pair<f64>;
 pub type CoordinatePair = Pair<Coordinate>;
+
+fn pair(x0: f64, y0: f64, x1: f64, y1: f64) -> CoordinatePair {
+    ((x0, y0), (x1, y1))
+}
+
+fn random_pair(rng: &mut ThreadRng) -> CoordinatePair {
+    pair(
+        rng.gen_range(X_RANGE),
+        rng.gen_range(Y_RANGE),
+        rng.gen_range(X_RANGE),
+        rng.gen_range(Y_RANGE),
+    )
+}
+
+fn random_pair_in_ranges(
+    rng: &mut ThreadRng,
+    x_range: RangeInclusive<f64>,
+    y_range: RangeInclusive<f64>,
+) -> CoordinatePair {
+    pair(
+        rng.gen_range(x_range.clone()),
+        rng.gen_range(y_range.clone()),
+        rng.gen_range(x_range.clone()),
+        rng.gen_range(y_range.clone()),
+    )
+}
 
 pub fn coor_pair_to_str(coord_pair: &CoordinatePair) -> String {
     let (p1, p2) = (coord_pair.0, coord_pair.1);
@@ -17,11 +44,6 @@ pub fn coor_pair_to_str(coord_pair: &CoordinatePair) -> String {
         r#"{{"x0":{}, "y0":{}, "x1":{}, "y1":{}}}"#,
         p1.0, p1.1, p2.0, p2.1
     )
-}
-
-fn generate_pair(_seed: i64, _uniform: bool) -> CoordinatePair {
-fn generate_pair() -> CoordinatePair {
-    ((generate_x(), generate_y()), (generate_x(), generate_y()))
 }
 
 pub fn generate_answers(pairs: &Vec<CoordinatePair>) -> Vec<f64> {
@@ -60,10 +82,43 @@ fn generate_y() -> f64 {
     generate_from_range(Y_RANGE)
 }
 
-pub fn generate_pairs(n: usize) -> Vec<CoordinatePair> {
-    iter::repeat_with(|| generate_pair()).take(n).collect()
+pub fn generate_pairs(n: usize, uniform: bool) -> Vec<CoordinatePair> {
+    if uniform {
+        generate_pairs_in_range(n, X_RANGE, Y_RANGE)
+    } else {
+        generate_pairs_cluster(n)
+    }
 }
 
+pub fn generate_pairs_in_range(
+    n: usize,
+    x_range: RangeInclusive<f64>,
+    y_range: RangeInclusive<f64>,
+) -> Vec<CoordinatePair> {
+    let mut rng = rand::thread_rng();
+
+    iter::repeat_with(|| random_pair_in_ranges(&mut rng, x_range.clone(), y_range.clone()))
+        .take(n)
+        .collect()
+}
+
+fn generate_pairs_cluster(n: usize) -> Vec<CoordinatePair> {
+    iter::repeat_with(|| generate_random_x_y_ranges())
+        .take(CLUSTER_COUNT as usize)
+        .flat_map(|(x_range, y_range)| generate_pairs_in_range(n / CLUSTER_COUNT, x_range, y_range))
+        .collect()
+}
+
+fn generate_random_x_y_ranges() -> Pair<RangeInclusive<f64>> {
+    (
+        generate_random_range_within(X_RANGE),
+        generate_random_range_within(Y_RANGE),
+    )
+}
+
+fn generate_random_range_within(range: RangeInclusive<f64>) -> RangeInclusive<f64> {
+    let a = rand::thread_rng().gen_range(range.clone()).ceil().abs();
+    -a..=a
 }
 
 pub fn pairs_to_str(pairs: &Vec<CoordinatePair>) -> String {
@@ -78,18 +133,12 @@ pub fn pairs_to_str(pairs: &Vec<CoordinatePair>) -> String {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::generator::pairs_to_str;
-
-    use super::{coor_pair_to_str, generate_pairs, CoordinatePair};
-
-    fn pair(x0: f64, y0: f64, x1: f64, y1: f64) -> CoordinatePair {
-        ((x0, y0), (x1, y1))
-    }
 
     #[test]
     fn test_generate_pairs() {
-        let pairs = generate_pairs(20, 8, true);
-        let pairs = generate_pairs(20);
+        let pairs = generate_pairs(20, true);
         assert_eq!(pairs.len(), 20)
     }
 

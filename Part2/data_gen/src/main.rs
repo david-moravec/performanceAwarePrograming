@@ -19,7 +19,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let pairs = generate_pairs(args.n);
+    let pairs = generate_pairs(args.n, args.uniform);
     let answers = generate_answers(&pairs);
 
     let expected_sum = answers.last().cloned().unwrap();
@@ -27,15 +27,15 @@ fn main() {
     let filename_json: String = format!("data_{}_flex.json", args.n);
     let filename_answer: String = format!("data_{}_answer.f64", args.n);
 
-    File::create(filename_json)
-        .unwrap()
-        .write(&pairs_to_str(&pairs).into_bytes())
-        .unwrap();
+    // File::create(filename_json)
+    //     .unwrap()
+    //     .write(&pairs_to_str(&pairs).into_bytes())
+    //     .unwrap();
 
-    File::create(filename_answer)
-        .unwrap()
-        .write(&serialize_vec(answers).into_bytes())
-        .unwrap();
+    // File::create(filename_answer)
+    //     .unwrap()
+    //     .write(&serialize_vec(answers).into_bytes())
+    //     .unwrap();
 
     println!(
         "Method: {}",
