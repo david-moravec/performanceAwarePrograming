@@ -16,15 +16,6 @@ fn pair(x0: f64, y0: f64, x1: f64, y1: f64) -> CoordinatePair {
     ((x0, y0), (x1, y1))
 }
 
-fn random_pair(rng: &mut ThreadRng) -> CoordinatePair {
-    pair(
-        rng.gen_range(X_RANGE),
-        rng.gen_range(Y_RANGE),
-        rng.gen_range(X_RANGE),
-        rng.gen_range(Y_RANGE),
-    )
-}
-
 fn random_pair_in_ranges(
     rng: &mut ThreadRng,
     x_range: RangeInclusive<f64>,
@@ -38,7 +29,7 @@ fn random_pair_in_ranges(
     )
 }
 
-pub fn coor_pair_to_str(coord_pair: &CoordinatePair) -> String {
+fn coor_pair_to_str(coord_pair: &CoordinatePair) -> String {
     let (p1, p2) = (coord_pair.0, coord_pair.1);
     format!(
         r#"{{"x0":{}, "y0":{}, "x1":{}, "y1":{}}}"#,
@@ -60,6 +51,25 @@ pub fn generate_answers(pairs: &Vec<CoordinatePair>) -> Vec<f64> {
     v
 }
 
+pub fn check_answers(pairs: &Vec<CoordinatePair>, answers: &Vec<f64>) -> Vec<f64> {
+    let answers_new = generate_answers(pairs);
+
+    for (i, (a_new, a)) in answers_new[..answers_new.len() - 1]
+        .iter()
+        .zip(answers[..answers.len() - 1].iter())
+        .enumerate()
+    {
+        if a_new - a >= 1e-6 {
+            println!(
+                "Answers do not agree\nExpected: {}\nComputed: {}\nPair: {:?}",
+                a, a_new, pairs[i]
+            )
+        }
+    }
+
+    answers_new
+}
+
 pub fn serialize_vec<T>(v: Vec<T>) -> String
 where
     T: fmt::Display,
@@ -70,18 +80,6 @@ where
         .join("\n")
 }
 
-fn generate_from_range(range: RangeInclusive<f64>) -> f64 {
-    rand::thread_rng().gen_range(range)
-}
-
-fn generate_x() -> f64 {
-    generate_from_range(X_RANGE)
-}
-
-fn generate_y() -> f64 {
-    generate_from_range(Y_RANGE)
-}
-
 pub fn generate_pairs(n: usize, uniform: bool) -> Vec<CoordinatePair> {
     if uniform {
         generate_pairs_in_range(n, X_RANGE, Y_RANGE)
@@ -90,7 +88,7 @@ pub fn generate_pairs(n: usize, uniform: bool) -> Vec<CoordinatePair> {
     }
 }
 
-pub fn generate_pairs_in_range(
+fn generate_pairs_in_range(
     n: usize,
     x_range: RangeInclusive<f64>,
     y_range: RangeInclusive<f64>,
