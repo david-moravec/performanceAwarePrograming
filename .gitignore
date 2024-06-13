@@ -1,3 +1,9 @@
+*.json
+*.f64
+
+*.asm
+*.data
+
 # Prerequisites
 *.d
 
