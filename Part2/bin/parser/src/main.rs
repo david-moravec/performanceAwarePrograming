@@ -1,14 +1,35 @@
-use crate::generator::CoordinatePair;
+use clap::Parser;
 use std::collections::HashMap;
 use std::{fs::File, io::Read};
 
-pub fn deserialize_json_input(mut f: File) -> Vec<CoordinatePair> {
+use util::haversine::*;
+
+#[derive(Debug, Parser)]
+struct Args {
+    file_path_json: String,
+    file_path_answer: String,
+}
+
+fn main() {
+    let args = Args::parse();
+
+    let pairs_parsed = deserialize_json_input(File::open(args.file_path_json).unwrap());
+    let answers_parsed = deserialize_answers_json(File::open(args.file_path_answer).unwrap());
+    let computed_answers = check_answers(&pairs_parsed, &answers_parsed);
+    let computed_sum = computed_answers.last().unwrap().clone();
+    let expected_sum = answers_parsed.last().unwrap().clone();
+
+    println!("Computed sum: {}", computed_sum);
+    println!("Difference is: {:.6}", (computed_sum - expected_sum).abs());
+}
+
+fn deserialize_json_input(mut f: File) -> Vec<CoordinatePair> {
     let mut data = vec![];
     f.read_to_end(&mut data).unwrap();
     coordinate_pairs_from_json(String::from_utf8(data).unwrap())
 }
 
-pub fn deserialize_answers_json(mut f: File) -> Vec<f64> {
+fn deserialize_answers_json(mut f: File) -> Vec<f64> {
     let mut data = vec![];
     f.read_to_end(&mut data).unwrap();
     answers_from_json(String::from_utf8(data).unwrap())

@@ -1,16 +1,52 @@
 use core::fmt;
 use rand::{rngs::ThreadRng, Rng};
-use std::{iter, ops::RangeInclusive};
+use std::{io::Write, iter, ops::RangeInclusive};
 
-use crate::{haversine::reference_haversine, EARTH_RAIDUS};
+use clap::Parser;
+use std::fs::File;
+
+use util::haversine::*;
 
 const X_RANGE: RangeInclusive<f64> = -180.0..=180.0;
 const Y_RANGE: RangeInclusive<f64> = -90.0..=90.0;
 const CLUSTER_COUNT: usize = 16;
 
-pub type Pair<T> = (T, T);
-pub type Coordinate = Pair<f64>;
-pub type CoordinatePair = Pair<Coordinate>;
+#[derive(Parser, Debug)]
+#[command(version, about, long_about=None)]
+struct Args {
+    n: usize,
+
+    #[arg(short, long)]
+    uniform: bool,
+}
+
+fn main() {
+    let args = Args::parse();
+    let pairs = generate_pairs(args.n, args.uniform);
+    let answers = generate_answers(&pairs);
+
+    let expected_sum = answers.last().cloned().unwrap();
+
+    let filename_json: String = format!("data_{}_flex.json", args.n);
+    let filename_answer: String = format!("data_{}_answer.f64", args.n);
+
+    File::create(&filename_json)
+        .unwrap()
+        .write(&pairs_to_str(&pairs).into_bytes())
+        .unwrap();
+
+    File::create(&filename_answer)
+        .unwrap()
+        .write(&serialize_vec(answers).into_bytes())
+        .unwrap();
+
+    println!(
+        "Method: {}",
+        if args.uniform { "Uniform" } else { "Cluster" }
+    );
+    println!("Pair count: {}", args.n);
+    println!("Expected sum: {}", expected_sum);
+}
 
 fn pair(x0: f64, y0: f64, x1: f64, y1: f64) -> CoordinatePair {
     ((x0, y0), (x1, y1))
@@ -35,39 +71,6 @@ fn coor_pair_to_str(coord_pair: &CoordinatePair) -> String {
         r#"{{"x0":{}, "y0":{}, "x1":{}, "y1":{}}}"#,
         p1.0, p1.1, p2.0, p2.1
     )
-}
-
-pub fn generate_answers(pairs: &Vec<CoordinatePair>) -> Vec<f64> {
-    let mut v = Vec::from_iter(
-        pairs
-            .into_iter()
-            .map(|ref p| reference_haversine(p, EARTH_RAIDUS)),
-    );
-
-    let avg_v = v.iter().fold(0.0, |a, e| a + e) / v.len() as f64;
-
-    v.push(avg_v);
-
-    v
-}
-
-pub fn check_answers(pairs: &Vec<CoordinatePair>, answers: &Vec<f64>) -> Vec<f64> {
-    let answers_new = generate_answers(pairs);
-
-    for (i, (a_new, a)) in answers_new[..answers_new.len() - 1]
-        .iter()
-        .zip(answers[..answers.len() - 1].iter())
-        .enumerate()
-    {
-        if a_new - a >= 1e-6 {
-            println!(
-                "Answers do not agree\nExpected: {}\nComputed: {}\nPair: {:?}",
-                a, a_new, pairs[i]
-            )
-        }
-    }
-
-    answers_new
 }
 
 pub fn serialize_vec<T>(v: Vec<T>) -> String
@@ -132,7 +135,6 @@ pub fn pairs_to_str(pairs: &Vec<CoordinatePair>) -> String {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::generator::pairs_to_str;
 
     #[test]
     fn test_generate_pairs() {

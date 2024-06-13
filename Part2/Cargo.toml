@@ -1,0 +1,14 @@
+[workspace]
+members = ["util", "bin/*"]
+resolver = "2"
+
+[workspace.dependencies]
+#local
+generator = { path = "./bin/generator"}
+parser= { path = "./bin/parser"}
+util = { path = "./util"}
+
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+winapi = { version = "0.3.9", features = ["profileapi"] }
+clap = { version = "4.5.6", features = ["derive"] }

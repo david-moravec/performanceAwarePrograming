@@ -1,0 +1,14 @@
+[package]
+name = "generator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+#local
+util.workspace = true
+
+
+clap.workspace= true
+rand.workspace= true
+rand_chacha.workspace= true
+winapi.workspace= true
