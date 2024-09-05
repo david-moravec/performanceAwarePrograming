@@ -1,6 +1,19 @@
+[package]
+name = "Part2"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
 [workspace]
-members = ["util", "bin/*", "timer_macros", "test_macro"]
+members = ["util", "bin/*", "timer_macros"]
 resolver = "2"
+
+[[bin]]
+name = "test-mac"
+path = "main.rs"
+
+[dependencies]
+timer_macros = {path = "./timer_macros"}
 
 [workspace.dependencies]
 #local
@@ -8,6 +21,7 @@ generator = { path = "./bin/generator"}
 parser= { path = "./bin/parser"}
 util = { path = "./util"}
 timer_macros = {path = "./timer_macros"}
+test_macros = {path = "./timer_macros/tests"}
 
 rand = "0.8.5"
 rand_chacha = "0.3.1"

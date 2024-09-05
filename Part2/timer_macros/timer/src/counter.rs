@@ -2,9 +2,6 @@ use core::arch::x86_64::_rdtsc;
 use std::mem;
 use winapi::um::profileapi::{QueryPerformanceCounter, QueryPerformanceFrequency};
 
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-
 pub fn os_freq() -> u64 {
     unsafe {
         let mut freq = mem::zeroed();
