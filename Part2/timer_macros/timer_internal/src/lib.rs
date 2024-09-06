@@ -18,13 +18,13 @@ pub fn time_it(args: TokenStream, input: TokenStream) -> TokenStream {
         #(#attrs)*
         #vis #sig {
             unsafe {
-            ::timer_macros::TIMER.start(#ident.to_string());
+            ::timer_macros::TIMER.start(#ident);
             };
 
             let ret = #block;
 
             unsafe {
-            ::timer_macros::TIMER.stop(&#ident.to_string());
+            ::timer_macros::TIMER.stop(#ident);
             };
             ret
         }
