@@ -57,12 +57,14 @@ impl Timer {
     pub fn start(&mut self, ident: &str) -> () {
         let ident = ident.to_string();
 
-        match self.running.take() {
-            Some(id) => self.pause(&id),
-            None => {}
-        };
+        if ident != "main" {
+            match self.running.take() {
+                Some(id) => self.pause(&id),
+                None => {}
+            };
 
-        self.running = Some(ident.clone());
+            self.running = Some(ident.clone());
+        }
 
         match self.profiles.get_mut(&ident) {
             Some(profile) => profile.push(TimeElapsed::new()),
@@ -73,7 +75,7 @@ impl Timer {
     }
 
     pub fn stop(&mut self, ident: &str) -> () {
-        self.last_elapsed(&ident.to_string()).stop();
+        self.profile(&ident.to_string()).stop();
         self.running = None;
 
         match self.paused.dequeue() {
@@ -84,7 +86,7 @@ impl Timer {
         // TODO: ("Check that ident we want to stop is currently running");
     }
 
-    fn last_elapsed(&mut self, ident: &str) -> &mut TimeElapsed {
+    fn profile(&mut self, ident: &str) -> &mut TimeElapsed {
         self.profiles
             .get_mut(ident)
             .expect(&format!("Profile for {:} does not exists", ident))
@@ -114,7 +116,7 @@ impl Timer {
     }
 
     fn pause(&mut self, ident: &str) -> () {
-        self.last_elapsed(ident).stop();
+        self.profile(ident).stop();
         self.paused.queue(ident.to_string()).unwrap();
     }
 }
