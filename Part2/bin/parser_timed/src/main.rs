@@ -2,6 +2,7 @@ use clap::Parser;
 use std::collections::HashMap;
 use std::{fs::File, io::Read};
 
+use timer_macros::time_it;
 use util::counter::*;
 use util::haversine::*;
 
@@ -11,57 +12,39 @@ struct Args {
     file_path_answer: String,
 }
 
+#[time_it]
 fn main() {
     let args = Args::parse();
 
-    let start_ts = read_cpu_timer();
-    let mut temp_ts = start_ts;
-
     let file_json = File::open(args.file_path_json).unwrap();
     let file_ans = File::open(args.file_path_answer).unwrap();
-    let opened_ts = read_cpu_timer() - temp_ts;
-    temp_ts = read_cpu_timer();
 
     let pairs_parsed = deserialize_json_input(file_json);
     let answers_parsed = deserialize_answers_json(file_ans);
-    let parsed_ts = read_cpu_timer() - temp_ts;
-    temp_ts = read_cpu_timer();
 
     let computed_answers = check_answers(&pairs_parsed, &answers_parsed);
     let computed_sum = computed_answers.last().unwrap().clone();
     let expected_sum = answers_parsed.last().unwrap().clone();
-    let computed_ts = read_cpu_timer() - temp_ts;
-    temp_ts = read_cpu_timer();
 
     println!("Computed sum: {}", computed_sum);
     println!("Difference is: {:.6}", (computed_sum - expected_sum).abs());
-    let output_ts = read_cpu_timer() - temp_ts;
-    let end_ts = read_cpu_timer() - start_ts;
-    let cpu_freq = guess_cpu_freq(Some(100));
-
-    println!(
-        "Total time: {:.4}ms (CPU freq {})",
-        end_ts as f64 / cpu_freq as f64 * 1000.0,
-        cpu_freq,
-    );
-    println!("{}", format_ts_output("Read", opened_ts, end_ts));
-    println!("{}", format_ts_output("Parse", parsed_ts, end_ts));
-    println!("{}", format_ts_output("Sum", computed_ts, end_ts));
-    println!("{}", format_ts_output("Output", output_ts, end_ts));
 }
 
+#[time_it]
 fn deserialize_json_input(mut f: File) -> Vec<CoordinatePair> {
     let mut data = vec![];
     f.read_to_end(&mut data).unwrap();
     coordinate_pairs_from_json(String::from_utf8(data).unwrap())
 }
 
+#[time_it]
 fn deserialize_answers_json(mut f: File) -> Vec<f64> {
     let mut data = vec![];
     f.read_to_end(&mut data).unwrap();
     answers_from_json(String::from_utf8(data).unwrap())
 }
 
+#[time_it]
 fn lex_json_input(mut s: String) -> Vec<HashMap<String, f64>> {
     s.retain(|c| !c.is_whitespace());
     s.drain(..s.find("[").unwrap() + 1);
