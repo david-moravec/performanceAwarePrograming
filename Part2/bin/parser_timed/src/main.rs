@@ -2,8 +2,7 @@ use clap::Parser;
 use std::collections::HashMap;
 use std::{fs::File, io::Read};
 
-use timer_macros::time_it;
-use util::counter::*;
+use timer_macros::{time_block, time_it};
 use util::haversine::*;
 
 #[derive(Debug, Parser)]
@@ -51,15 +50,17 @@ fn lex_json_input(mut s: String) -> Vec<HashMap<String, f64>> {
 
     let mut result = vec![];
 
-    while let Some(c) = s.chars().next() {
-        match c {
-            '{' => result.push(deserialize_hashmap(chop_string_at(&mut s, '}'))),
-            ',' => s = s[1..].to_string(), // skip
-            ']' => s = s[1..].to_string(), // skip
-            '}' => s = s[1..].to_string(), // skip
-            _ => panic!("Unknown character {}", c),
-        };
-    }
+    time_block!("lex_json_inner_for_loop", {
+        while let Some(c) = s.chars().next() {
+            match c {
+                '{' => result.push(deserialize_hashmap(chop_string_at(&mut s, '}'))),
+                ',' => s = s[1..].to_string(), // skip
+                ']' => s = s[1..].to_string(), // skip
+                '}' => s = s[1..].to_string(), // skip
+                _ => panic!("Unknown character {}", c),
+            };
+        }
+    });
 
     result
 }

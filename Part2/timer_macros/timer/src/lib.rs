@@ -1,6 +1,6 @@
 pub mod counter;
 
-use counter::{guess_cpu_freq, read_os_timer, ts_ratio};
+use counter::{guess_cpu_freq, read_cpu_timer, read_os_timer, ts_ratio};
 
 use lazy_static::lazy_static;
 use once_cell::sync::Lazy;
@@ -35,7 +35,10 @@ impl TimeElapsed {
     }
 
     fn elapsed_ts(&self) -> u64 {
-        self.stop.unwrap() - self.start
+        match self.stop {
+            Some(t) => t - self.start,
+            None => read_os_timer() - self.start,
+        }
     }
 }
 
@@ -57,12 +60,9 @@ impl Timer {
     pub fn start(&mut self, ident: &str) -> () {
         let ident = ident.to_string();
 
-        if ident != "main" {
-            match self.running.take() {
-                Some(id) => self.pause(&id),
-                None => {}
-            };
-
+        if ident == "main" {
+        } else {
+            self.pause_running();
             self.running = Some(ident.clone());
         }
 
@@ -75,15 +75,18 @@ impl Timer {
     }
 
     pub fn stop(&mut self, ident: &str) -> () {
-        self.profile(&ident.to_string()).stop();
-        self.running = None;
-
-        match self.paused.dequeue() {
-            Some(ident) => self.start(&ident),
+        match self.running {
+            Some(ref running) => {
+                if running != ident {
+                    panic!("Cannot stop {:}. {:} is currently running", ident, running)
+                }
+            }
             None => {}
         }
 
-        // TODO: ("Check that ident we want to stop is currently running");
+        self.profile(&ident.to_string()).stop();
+        self.running = None;
+        self.continue_running_paused();
     }
 
     fn profile(&mut self, ident: &str) -> &mut TimeElapsed {
@@ -116,8 +119,22 @@ impl Timer {
     }
 
     fn pause(&mut self, ident: &str) -> () {
-        self.profile(ident).stop();
+        self.stop(ident);
         self.paused.queue(ident.to_string()).unwrap();
+    }
+
+    fn pause_running(&mut self) -> () {
+        match self.running.take() {
+            Some(id) => self.pause(&id),
+            None => {}
+        };
+    }
+
+    fn continue_running_paused(&mut self) -> () {
+        match self.paused.dequeue() {
+            Some(ident) => self.start(&ident),
+            None => {}
+        }
     }
 }
 
@@ -141,7 +158,6 @@ impl Display for Timer {
             None => (),
         }
 
-
         Ok(())
     }
 }
@@ -155,9 +171,7 @@ impl std::fmt::Debug for Timer {
 pub static mut TIMER: Lazy<Timer> = Lazy::new(Timer::new);
 
 pub fn print_timer() -> () {
-    unsafe {
-        println!("{}", ::once_cell::sync::Lazy::get(&TIMER).unwrap())
-    }
+    unsafe { println!("{}", ::once_cell::sync::Lazy::get(&TIMER).unwrap()) }
 }
 
 #[cfg(test)]
