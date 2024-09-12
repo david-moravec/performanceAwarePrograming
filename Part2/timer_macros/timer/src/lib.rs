@@ -1,11 +1,9 @@
 pub mod counter;
 
-use counter::{guess_cpu_freq, read_cpu_timer, read_os_timer, ts_ratio};
+use counter::{guess_cpu_freq, read_os_timer, ts_ratio};
 
-use lazy_static::lazy_static;
 use once_cell::sync::Lazy;
-use queue::Queue;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Display;
 use std::time::Duration;
 
@@ -28,7 +26,7 @@ impl TimeElapsed {
     }
 
     fn elapsed_duration(&self, cpu_freq: f64) -> Duration {
-        let ts = self.stop.unwrap() - self.start;
+        let ts = self.stop.expect("not yet stopped") - self.start;
         let nanosec = (ts as f64 / cpu_freq) * 1e9;
 
         Duration::new(0, nanosec as u32)
@@ -44,7 +42,7 @@ impl TimeElapsed {
 
 pub struct Timer {
     profiles: HashMap<String, Vec<TimeElapsed>>,
-    paused: Queue<String>,
+    paused: VecDeque<String>,
     running: Option<String>,
 }
 
@@ -52,7 +50,7 @@ impl Timer {
     pub fn new() -> Self {
         Timer {
             profiles: HashMap::new(),
-            paused: Queue::new(),
+            paused: VecDeque::new(),
             running: None,
         }
     }
@@ -60,11 +58,8 @@ impl Timer {
     pub fn start(&mut self, ident: &str) -> () {
         let ident = ident.to_string();
 
-        if ident == "main" {
-        } else {
-            self.pause_running();
-            self.running = Some(ident.clone());
-        }
+        self.pause_running();
+        self.running = Some(ident.clone());
 
         match self.profiles.get_mut(&ident) {
             Some(profile) => profile.push(TimeElapsed::new()),
@@ -119,8 +114,12 @@ impl Timer {
     }
 
     fn pause(&mut self, ident: &str) -> () {
-        self.stop(ident);
-        self.paused.queue(ident.to_string()).unwrap();
+        if ident == "main" {
+            return;
+        }
+
+        self.profile(&ident.to_string()).stop();
+        self.paused.push_front(ident.to_string());
     }
 
     fn pause_running(&mut self) -> () {
@@ -128,10 +127,14 @@ impl Timer {
             Some(id) => self.pause(&id),
             None => {}
         };
+
+        assert!(self.running.is_none());
     }
 
     fn continue_running_paused(&mut self) -> () {
-        match self.paused.dequeue() {
+        assert!(self.running.is_none());
+
+        match self.paused.pop_front() {
             Some(ident) => self.start(&ident),
             None => {}
         }
@@ -226,5 +229,50 @@ mod test {
         timer.stop("foo");
 
         assert!(elapsed_foo_1 < timer.elapsed_total_duration("foo"))
+    }
+
+    #[test]
+    fn test_timer_pause_complex() {
+        let mut timer = Timer::new();
+
+        assert_eq!(timer.running, None);
+
+        let bar = "bar";
+        let foo = "foo";
+        let foo_inner = "foo_inner";
+        let bar_inner = "bar_inner";
+
+        let mut queue_test = VecDeque::new();
+
+        fn start_fn(ident: &str, queue_test: &mut VecDeque<String>, timer: &mut Timer) -> () {
+            queue_test.push_front(timer.running.clone().unwrap());
+            timer.start(ident);
+            assert_eq!(*queue_test, timer.paused);
+            assert_eq!(timer.running, Some(ident.to_string()));
+        }
+
+        fn stop_fn(ident: &str, queue_test: &mut VecDeque<String>, timer: &mut Timer) -> () {
+            timer.stop(ident);
+            assert_eq!(timer.running, queue_test.pop_front());
+            assert_eq!(*queue_test, timer.paused);
+        }
+
+        timer.start("main");
+
+        timer.start(foo);
+        assert_eq!(timer.running, Some(foo.to_string()));
+
+        start_fn(foo_inner, &mut queue_test, &mut timer);
+        stop_fn(foo_inner, &mut queue_test, &mut timer);
+
+        start_fn(bar, &mut queue_test, &mut timer);
+
+        start_fn(bar_inner, &mut queue_test, &mut timer);
+        stop_fn(bar_inner, &mut queue_test, &mut timer);
+
+        stop_fn(bar, &mut queue_test, &mut timer);
+
+        timer.stop(foo);
+        timer.stop("main");
     }
 }
