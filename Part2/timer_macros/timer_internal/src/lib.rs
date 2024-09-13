@@ -59,19 +59,17 @@ fn decorate_main(
     sig: Signature,
     block: Box<Block>,
 ) -> proc_macro2::TokenStream {
-    let ident = &sig.ident.to_string();
-
     quote! {
         #(#attrs)*
         #vis #sig {
             unsafe {
-                ::timer_macros::TIMER.start(#ident);
+                ::timer_macros::TIMER.start_main();
             };
 
             let ret = #block;
 
             unsafe {
-                ::timer_macros::TIMER.stop(#ident);
+                ::timer_macros::TIMER.stop_main();
             };
             unsafe {
                 ::timer_macros::print_timer();

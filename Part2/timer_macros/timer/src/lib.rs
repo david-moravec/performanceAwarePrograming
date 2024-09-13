@@ -8,51 +8,101 @@ use std::fmt::Display;
 use std::time::Duration;
 
 #[derive(Debug)]
+pub struct TimeAnchor {
+    hit_count: u64,
+    elapsed_acc: u64,
+    elapsed_children_acc: u64,
+    elapsed: TimeElapsed,
+    elapsed_children: TimeElapsed,
+}
+
+impl TimeAnchor {
+    pub fn new() -> Self {
+        TimeAnchor {
+            hit_count: 1,
+            elapsed_acc: 0,
+            elapsed_children_acc: 0,
+            elapsed: TimeElapsed::new(),
+            elapsed_children: TimeElapsed::new(),
+        }
+    }
+
+    pub fn start(&mut self) -> () {
+        self.elapsed.start();
+        self.hit_count += 1
+    }
+
+    pub fn stop(&mut self) -> () {
+        self.elapsed_acc += self.elapsed.stop();
+    }
+
+    pub fn start_children(&mut self) -> () {
+        self.elapsed_children.start()
+    }
+
+    pub fn stop_children(&mut self) -> () {
+        self.elapsed_children_acc += self.elapsed_children.stop();
+    }
+}
+
+#[derive(Debug)]
 pub struct TimeElapsed {
     start: u64,
-    stop: Option<u64>,
 }
 
 impl TimeElapsed {
     pub fn new() -> Self {
         TimeElapsed {
             start: read_os_timer(),
-            stop: None,
         }
     }
 
-    pub fn stop(&mut self) -> () {
-        self.stop = Some(read_os_timer());
+    pub fn stop(&mut self) -> u64 {
+        let stop = read_os_timer();
+        let elapsed = stop - self.start;
+        self.start = 0;
+
+        elapsed
     }
 
-    fn elapsed_duration(&self, cpu_freq: f64) -> Duration {
-        let ts = self.stop.expect("not yet stopped") - self.start;
-        let nanosec = (ts as f64 / cpu_freq) * 1e9;
-
-        Duration::new(0, nanosec as u32)
-    }
-
-    fn elapsed_ts(&self) -> u64 {
-        match self.stop {
-            Some(t) => t - self.start,
-            None => read_os_timer() - self.start,
-        }
+    pub fn start(&mut self) -> () {
+        self.start = read_os_timer();
     }
 }
 
 pub struct Timer {
-    profiles: HashMap<String, Vec<TimeElapsed>>,
+    anchors: HashMap<String, TimeAnchor>,
     paused: VecDeque<String>,
     running: Option<String>,
+    start_main: u64,
+    stop_main: u64,
 }
 
 impl Timer {
     pub fn new() -> Self {
         Timer {
-            profiles: HashMap::new(),
+            anchors: HashMap::new(),
             paused: VecDeque::new(),
             running: None,
+            start_main: 0,
+            stop_main: 0,
         }
+    }
+
+    pub fn start_main(&mut self) -> () {
+        self.start_main = read_os_timer();
+    }
+
+    pub fn stop_main(&mut self) -> () {
+        self.stop_main = read_os_timer();
+    }
+
+    pub fn main_duration(&self) -> Duration {
+        let elapsed_main = self.stop_main - self.start_main;
+        let cpu_freq = guess_cpu_freq(Some(100));
+        let nanosec = (elapsed_main as f64 / cpu_freq as f64) * 1e9;
+
+        Duration::new(0, nanosec as u32)
     }
 
     pub fn start(&mut self, ident: &str) -> () {
@@ -61,10 +111,10 @@ impl Timer {
         self.pause_running();
         self.running = Some(ident.clone());
 
-        match self.profiles.get_mut(&ident) {
-            Some(profile) => profile.push(TimeElapsed::new()),
+        match self.anchors.get_mut(&ident) {
+            Some(anchor) => anchor.start(),
             None => {
-                self.profiles.insert(ident, vec![TimeElapsed::new()]);
+                self.anchors.insert(ident, TimeAnchor::new());
             }
         }
     }
@@ -79,38 +129,25 @@ impl Timer {
             None => {}
         }
 
-        self.profile(&ident.to_string()).stop();
+        self.anchor_mut(&ident.to_string()).stop();
         self.running = None;
         self.continue_running_paused();
     }
 
-    fn profile(&mut self, ident: &str) -> &mut TimeElapsed {
-        self.profiles
+    fn anchor_mut(&mut self, ident: &str) -> &mut TimeAnchor {
+        self.anchors
             .get_mut(ident)
             .expect(&format!("Profile for {:} does not exists", ident))
-            .last_mut()
-            .expect("Should always start before stopping")
     }
 
-    fn elapsed_total_duration(&self, ident: &str) -> Duration {
-        let cpu_freq = guess_cpu_freq(Some(100));
-        let profiles = self
-            .profiles
+    fn anchor(&self, ident: &str) -> &TimeAnchor {
+        self.anchors
             .get(ident)
-            .expect(&format!("Profile for {:} does not exists", ident));
-
-        profiles.iter().fold(Duration::new(0, 0), |a, b| {
-            a + b.elapsed_duration(cpu_freq as f64)
-        })
+            .expect(&format!("Profile for {:} does not exists", ident))
     }
 
     fn elapsed_total_ts(&self, ident: &str) -> u64 {
-        let profile = self
-            .profiles
-            .get(ident)
-            .expect(&format!("Profile for {:} does not exists", ident));
-
-        profile.iter().fold(0, |a, b| a + b.elapsed_ts())
+        self.anchor(ident).elapsed_acc
     }
 
     fn pause(&mut self, ident: &str) -> () {
@@ -118,12 +155,16 @@ impl Timer {
             return;
         }
 
-        self.profile(&ident.to_string()).stop();
+        self.anchor_mut(&ident.to_string()).stop();
         self.paused.push_front(ident.to_string());
     }
 
-    fn hit_count(&self, ident: &str) -> usize {
-        self.profiles.get(ident).unwrap().len()
+    fn hit_count(&self, ident: &str) -> u64 {
+        self.anchor(ident).hit_count
+    }
+
+    fn elapsed_total_main(&self) -> u64 {
+        self.stop_main - self.start_main
     }
 
     fn pause_running(&mut self) -> () {
@@ -147,25 +188,19 @@ impl Timer {
 
 impl Display for Timer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.profiles.get("main") {
-            Some(_) => {
-                writeln!(f, "\nTotal time: {:?}", self.elapsed_total_duration("main"))?;
-                for ident in self.profiles.keys() {
-                    if ident != "main" {
-                        writeln!(
-                            f,
-                            "{}[{:}]: {} ({:.2}%)",
-                            ident,
-                            self.hit_count(ident),
-                            self.elapsed_total_ts(ident),
-                            ts_ratio(self.elapsed_total_ts(ident), self.elapsed_total_ts("main"))
-                        )?;
-                    }
-                }
+        writeln!(f, "\nTotal time: {:?}", self.main_duration())?;
+        for ident in self.anchors.keys() {
+            if ident != "main" {
+                writeln!(
+                    f,
+                    "{}[{:}]: {} ({:.2}%)",
+                    ident,
+                    self.hit_count(ident),
+                    self.elapsed_total_ts(ident),
+                    ts_ratio(self.elapsed_total_ts(ident), self.elapsed_total_main())
+                )?;
             }
-            None => (),
         }
-
         Ok(())
     }
 }
@@ -196,7 +231,7 @@ mod test {
         sleep(Duration::new(0, 1000));
         timer.stop("foo");
 
-        assert!(timer.elapsed_total_duration("foo") > Duration::new(0, 0))
+        assert!(timer.elapsed_total_ts("foo") > 0)
     }
 
     #[test]
@@ -207,13 +242,13 @@ mod test {
         sleep(Duration::new(0, 1000));
         timer.stop("foo");
 
-        let elapsed_1 = timer.elapsed_total_duration("foo");
+        let elapsed_1 = timer.elapsed_total_ts("foo");
 
         timer.start("foo");
         sleep(Duration::new(0, 1000));
         timer.stop("foo");
 
-        assert!(elapsed_1 < timer.elapsed_total_duration("foo"));
+        assert!(elapsed_1 < timer.elapsed_total_ts("foo"));
     }
 
     #[test]
@@ -226,14 +261,14 @@ mod test {
         assert_eq!(timer.running, Some("foo".to_string()));
 
         timer.start("foofoo");
-        let elapsed_foo_1 = timer.elapsed_total_duration("foo");
+        let elapsed_foo_1 = timer.elapsed_total_ts("foo");
         assert_eq!(timer.running, Some("foofoo".to_string()));
 
         timer.stop("foofoo");
         assert_eq!(timer.running, Some("foo".to_string()));
         timer.stop("foo");
 
-        assert!(elapsed_foo_1 < timer.elapsed_total_duration("foo"))
+        assert!(elapsed_foo_1 < timer.elapsed_total_ts("foo"))
     }
 
     #[test]
