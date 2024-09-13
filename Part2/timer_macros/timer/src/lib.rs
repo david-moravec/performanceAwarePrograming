@@ -122,6 +122,10 @@ impl Timer {
         self.paused.push_front(ident.to_string());
     }
 
+    fn hit_count(&self, ident: &str) -> usize {
+        self.profiles.get(ident).unwrap().len()
+    }
+
     fn pause_running(&mut self) -> () {
         match self.running.take() {
             Some(id) => self.pause(&id),
@@ -150,8 +154,9 @@ impl Display for Timer {
                     if ident != "main" {
                         writeln!(
                             f,
-                            "{}: {} ({:.2}%)",
+                            "{}[{:}]: {} ({:.2}%)",
                             ident,
+                            self.hit_count(ident),
                             self.elapsed_total_ts(ident),
                             ts_ratio(self.elapsed_total_ts(ident), self.elapsed_total_ts("main"))
                         )?;
