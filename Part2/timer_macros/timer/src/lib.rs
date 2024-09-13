@@ -23,7 +23,7 @@ impl TimeAnchor {
             elapsed_acc: 0,
             elapsed_children_acc: 0,
             elapsed: TimeElapsed::new(),
-            elapsed_children: TimeElapsed::new(),
+            elapsed_children: TimeElapsed { start: 0 },
         }
     }
 
@@ -36,12 +36,26 @@ impl TimeAnchor {
         self.elapsed_acc += self.elapsed.stop();
     }
 
+    pub fn pause(&mut self) -> () {
+        self.stop();
+        self.elapsed_children.start();
+    }
+
+    pub fn continue_run(&mut self) -> () {
+        self.elapsed_children_acc += self.elapsed_children.stop();
+        self.elapsed.start()
+    }
+
     pub fn start_children(&mut self) -> () {
         self.elapsed_children.start()
     }
 
     pub fn stop_children(&mut self) -> () {
         self.elapsed_children_acc += self.elapsed_children.stop();
+    }
+
+    pub fn elapsed_w_children(&self) -> u64 {
+        self.elapsed_acc + self.elapsed_children_acc
     }
 }
 
@@ -150,12 +164,16 @@ impl Timer {
         self.anchor(ident).elapsed_acc
     }
 
+    fn elapsed_total_ts_w_children(&self, ident: &str) -> u64 {
+        self.anchor(ident).elapsed_w_children()
+    }
+
     fn pause(&mut self, ident: &str) -> () {
         if ident == "main" {
             return;
         }
 
-        self.anchor_mut(&ident.to_string()).stop();
+        self.anchor_mut(&ident.to_string()).pause();
         self.paused.push_front(ident.to_string());
     }
 
@@ -180,7 +198,10 @@ impl Timer {
         assert!(self.running.is_none());
 
         match self.paused.pop_front() {
-            Some(ident) => self.start(&ident),
+            Some(ident) => {
+                self.anchor_mut(&ident).continue_run();
+                self.running = Some(ident.to_string());
+            }
             None => {}
         }
     }
@@ -191,15 +212,28 @@ impl Display for Timer {
         writeln!(f, "\nTotal time: {:?}", self.main_duration())?;
         for ident in self.anchors.keys() {
             if ident != "main" {
-                writeln!(
+                write!(
                     f,
-                    "{}[{:}]: {} ({:.2}%)",
+                    "{}[{:}]: {} ({:.2}%",
                     ident,
                     self.hit_count(ident),
                     self.elapsed_total_ts(ident),
-                    ts_ratio(self.elapsed_total_ts(ident), self.elapsed_total_main())
+                    ts_ratio(self.elapsed_total_ts(ident), self.elapsed_total_main()),
                 )?;
             }
+
+            if self.anchor(ident).elapsed_children_acc != 0 {
+                writeln!(
+                    f,
+                    ", {:.2} w/children)",
+                    ts_ratio(
+                        self.elapsed_total_ts_w_children(ident),
+                        self.elapsed_total_main()
+                    )
+                )
+            } else {
+                writeln!(f, ")")
+            }?;
         }
         Ok(())
     }
