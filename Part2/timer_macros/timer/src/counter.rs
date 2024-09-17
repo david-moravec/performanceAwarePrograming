@@ -39,7 +39,7 @@ pub fn guess_cpu_freq(wait_for_ms: Option<u64>) -> u64 {
 
     let cpu_elapsed = read_cpu_timer() - cpu_start;
 
-    os_freq / os_elapsed * cpu_elapsed
+    os_freq * os_elapsed / cpu_elapsed
 }
 
 pub fn ts_ratio(t1: u64, t2: u64) -> f64 {

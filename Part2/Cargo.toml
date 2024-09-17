@@ -1,19 +1,6 @@
-[package]
-name = "Part2"
-version = "0.0.0"
-edition = "2021"
-publish = false
-
 [workspace]
 members = ["util", "bin/*", "timer_macros"]
 resolver = "2"
-
-[[bin]]
-name = "test-mac"
-path = "main.rs"
-
-[dependencies]
-timer_macros = {path = "./timer_macros"}
 
 [workspace.dependencies]
 #local

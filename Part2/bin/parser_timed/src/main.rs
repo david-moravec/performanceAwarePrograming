@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::collections::HashMap;
+use std::mem::size_of;
 use std::{fs::File, io::Read};
 
 use timer_macros::{time_block, time_it};
@@ -16,12 +17,13 @@ fn main() {
     let args = Args::parse();
 
     let file_json = File::open(args.file_path_json).unwrap();
+
     let file_ans = File::open(args.file_path_answer).unwrap();
 
     let pairs_parsed = deserialize_json_input(file_json);
     let answers_parsed = deserialize_answers_json(file_ans);
 
-    let computed_answers = check_answers(&pairs_parsed, &answers_parsed);
+    let computed_answers = check_answers_timed(&pairs_parsed, &answers_parsed);
     let computed_sum = computed_answers.last().unwrap().clone();
     let expected_sum = answers_parsed.last().unwrap().clone();
 
@@ -29,28 +31,58 @@ fn main() {
     println!("Difference is: {:.6}", (computed_sum - expected_sum).abs());
 }
 
-#[time_it]
-fn deserialize_json_input(mut f: File) -> Vec<CoordinatePair> {
-    let mut data = vec![];
-    f.read_to_end(&mut data).unwrap();
-    coordinate_pairs_from_json(String::from_utf8(data).unwrap())
+fn check_answers_timed(pairs: &Vec<CoordinatePair>, answers: &Vec<f64>) -> Vec<f64> {
+    let answers_new = generate_answers(pairs);
+
+    time_block!(
+        "haversine_sum",
+        pairs.len() * size_of::<CoordinatePair>(),
+        {
+            for (i, (a_new, a)) in answers_new[..answers_new.len() - 1]
+                .iter()
+                .zip(answers[..answers.len() - 1].iter())
+                .enumerate()
+            {
+                if a_new - a >= 1e-6 {
+                    println!(
+                        "Answers do not agree\nExpected: {}\nComputed: {}\nPair: {:?}",
+                        a, a_new, pairs[i]
+                    )
+                }
+            }
+        }
+    );
+    answers_new
 }
 
-#[time_it]
+fn deserialize_json_input(mut f: File) -> Vec<CoordinatePair> {
+    let mut data = vec![];
+    time_block!("fread", f.metadata().unwrap().len() as usize, {
+        f.read_to_end(&mut data).unwrap();
+    });
+    let res: Vec<CoordinatePair>;
+
+    time_block!("from_json", f.metadata().unwrap().len() as usize, {
+        res = coordinate_pairs_from_json(String::from_utf8(data).unwrap());
+    });
+
+    res
+}
+
 fn deserialize_answers_json(mut f: File) -> Vec<f64> {
     let mut data = vec![];
-    f.read_to_end(&mut data).unwrap();
+    let byte_count = f.read_to_end(&mut data).unwrap();
+
     answers_from_json(String::from_utf8(data).unwrap())
 }
 
-#[time_it]
 fn lex_json_input(mut s: String) -> Vec<HashMap<String, f64>> {
     s.retain(|c| !c.is_whitespace());
     s.drain(..s.find("[").unwrap() + 1);
 
     let mut result = vec![];
 
-    time_block!("lex_json_inner_for_loop", {
+    time_block!("lex_json_loop", {
         while let Some(c) = s.chars().next() {
             match c {
                 '{' => result.push(deserialize_hashmap(chop_string_at(&mut s, '}'))),
@@ -61,7 +93,6 @@ fn lex_json_input(mut s: String) -> Vec<HashMap<String, f64>> {
             };
         }
     });
-
     result
 }
 

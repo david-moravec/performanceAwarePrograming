@@ -12,4 +12,14 @@ macro_rules! time_block {
             ::timer_macros::TIMER.stop($ident);
         }
     };
+    ($ident: expr, $bytes_processed: expr, $block: block) => {
+        unsafe {
+            ::timer_macros::TIMER.start($ident);
+            ::timer_macros::TIMER.add_bytes_processed($ident, $bytes_processed);
+        }
+        $block;
+        unsafe {
+            ::timer_macros::TIMER.stop($ident);
+        }
+    };
 }

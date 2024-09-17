@@ -1,11 +1,11 @@
 pub mod counter;
 
-use counter::{guess_cpu_freq, read_os_timer, ts_ratio};
+use counter::{read_os_timer, ts_ratio};
 
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Display;
-use std::time::Duration;
+
 
 #[derive(Debug)]
 pub struct TimeAnchor {
@@ -14,6 +14,7 @@ pub struct TimeAnchor {
     elapsed_children_acc: u64,
     elapsed: TimeElapsed,
     elapsed_children: TimeElapsed,
+    processed_bytes: u64,
 }
 
 impl TimeAnchor {
@@ -24,6 +25,7 @@ impl TimeAnchor {
             elapsed_children_acc: 0,
             elapsed: TimeElapsed::new(),
             elapsed_children: TimeElapsed { start: 0 },
+            processed_bytes: 0,
         }
     }
 
@@ -111,12 +113,9 @@ impl Timer {
         self.stop_main = read_os_timer();
     }
 
-    pub fn main_duration(&self) -> Duration {
+    pub fn main_duration_ms(&self, freq: f64) -> f64 {
         let elapsed_main = self.stop_main - self.start_main;
-        let cpu_freq = guess_cpu_freq(Some(100));
-        let nanosec = (elapsed_main as f64 / cpu_freq as f64) * 1e9;
-
-        Duration::new(0, nanosec as u32)
+        elapsed_main as f64 / freq as f64 * 1000.0
     }
 
     pub fn start(&mut self, ident: &str) -> () {
@@ -177,6 +176,10 @@ impl Timer {
         self.paused.push_front(ident.to_string());
     }
 
+    pub fn add_bytes_processed(&mut self, ident: &str, byte_count: usize) -> () {
+        self.anchor_mut(ident).processed_bytes += byte_count as u64;
+    }
+
     fn hit_count(&self, ident: &str) -> u64 {
         self.anchor(ident).hit_count
     }
@@ -209,7 +212,9 @@ impl Timer {
 
 impl Display for Timer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "\nTotal time: {:?}", self.main_duration())?;
+        let freq = 2.1e9;
+        writeln!(f, "\nCPU Freq: {:}", freq)?;
+        writeln!(f, "\nTotal time: {:?}ms", self.main_duration_ms(freq))?;
         for ident in self.anchors.keys() {
             if ident != "main" {
                 write!(
@@ -223,17 +228,29 @@ impl Display for Timer {
             }
 
             if self.anchor(ident).elapsed_children_acc != 0 {
-                writeln!(
+                write!(
                     f,
-                    ", {:.2} w/children)",
+                    ", {:.2} w/children",
                     ts_ratio(
                         self.elapsed_total_ts_w_children(ident),
                         self.elapsed_total_main()
                     )
-                )
-            } else {
-                writeln!(f, ")")
-            }?;
+                )?;
+            };
+
+            if self.anchor(ident).processed_bytes > 0 {
+                let megabyte: f64 = 1024.0 * 1024.0;
+                let gigabyte: f64 = 1024.0 * megabyte;
+
+                let seconds = 1000.0 * self.elapsed_total_ts_w_children(ident) as f64 / freq as f64;
+                let bytes_per_sec = self.anchor(ident).processed_bytes as f64 / seconds;
+                let megabytes = self.anchor(ident).processed_bytes as f64 / megabyte;
+                let gigebytes_per_sec = bytes_per_sec / gigabyte;
+
+                write!(f, ", {:.3}mb at {:.2}gb/s", megabytes, gigebytes_per_sec)?;
+            }
+
+            writeln!(f, ")")?;
         }
         Ok(())
     }
