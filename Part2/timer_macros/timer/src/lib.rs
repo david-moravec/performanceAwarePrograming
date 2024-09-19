@@ -1,11 +1,12 @@
 pub mod counter;
+use std::ptr::addr_of;
+use std::time::{Duration, Instant};
 
-use counter::{read_os_timer, ts_ratio};
+use counter::{os_freq, read_os_timer, ts_ratio};
 
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Display;
-
 
 #[derive(Debug)]
 pub struct TimeAnchor {
@@ -90,8 +91,10 @@ pub struct Timer {
     anchors: HashMap<String, TimeAnchor>,
     paused: VecDeque<String>,
     running: Option<String>,
-    start_main: u64,
-    stop_main: u64,
+    main_start: Instant,
+    elapsed: Duration,
+    start_ts: u64,
+    stop_ts: u64,
 }
 
 impl Timer {
@@ -100,22 +103,25 @@ impl Timer {
             anchors: HashMap::new(),
             paused: VecDeque::new(),
             running: None,
-            start_main: 0,
-            stop_main: 0,
+            main_start: Instant::now(),
+            start_ts: 0,
+            stop_ts: 0,
+            elapsed: Duration::new(0, 0),
         }
     }
 
     pub fn start_main(&mut self) -> () {
-        self.start_main = read_os_timer();
+        self.main_start = Instant::now();
+        self.start_ts = read_os_timer();
     }
 
     pub fn stop_main(&mut self) -> () {
-        self.stop_main = read_os_timer();
+        self.elapsed = self.main_start.elapsed();
+        self.stop_ts = read_os_timer();
     }
 
-    pub fn main_duration_ms(&self, freq: f64) -> f64 {
-        let elapsed_main = self.stop_main - self.start_main;
-        elapsed_main as f64 / freq as f64 * 1000.0
+    pub fn main_duration(&self) -> Duration {
+        self.elapsed
     }
 
     pub fn start(&mut self, ident: &str) -> () {
@@ -185,7 +191,7 @@ impl Timer {
     }
 
     fn elapsed_total_main(&self) -> u64 {
-        self.stop_main - self.start_main
+        self.stop_ts - self.start_ts
     }
 
     fn pause_running(&mut self) -> () {
@@ -212,9 +218,8 @@ impl Timer {
 
 impl Display for Timer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let freq = 2.1e9;
-        writeln!(f, "\nCPU Freq: {:}", freq)?;
-        writeln!(f, "\nTotal time: {:?}ms", self.main_duration_ms(freq))?;
+        let freq = os_freq();
+        writeln!(f, "\nTotal time: {:?}", self.main_duration())?;
         for ident in self.anchors.keys() {
             if ident != "main" {
                 write!(
@@ -242,7 +247,7 @@ impl Display for Timer {
                 let megabyte: f64 = 1024.0 * 1024.0;
                 let gigabyte: f64 = 1024.0 * megabyte;
 
-                let seconds = 1000.0 * self.elapsed_total_ts_w_children(ident) as f64 / freq as f64;
+                let seconds = self.elapsed_total_ts_w_children(ident) as f64 / freq as f64;
                 let bytes_per_sec = self.anchor(ident).processed_bytes as f64 / seconds;
                 let megabytes = self.anchor(ident).processed_bytes as f64 / megabyte;
                 let gigebytes_per_sec = bytes_per_sec / gigabyte;
@@ -265,7 +270,12 @@ impl std::fmt::Debug for Timer {
 pub static mut TIMER: Lazy<Timer> = Lazy::new(Timer::new);
 
 pub fn print_timer() -> () {
-    unsafe { println!("{}", ::once_cell::sync::Lazy::get(&TIMER).unwrap()) }
+    unsafe {
+        println!(
+            "{}",
+            ::once_cell::sync::Lazy::get(&*addr_of!(TIMER)).unwrap()
+        )
+    }
 }
 
 #[cfg(test)]
