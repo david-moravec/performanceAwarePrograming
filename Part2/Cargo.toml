@@ -1,5 +1,5 @@
 [workspace]
-members = ["util", "bin/*", "timer_macros"]
+members = ["util", "bin/*", "timer_macros", "repetition_tester"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -9,6 +9,7 @@ parser= { path = "./bin/parser"}
 util = { path = "./util"}
 timer_macros = {path = "./timer_macros"}
 test_macros = {path = "./timer_macros/tests"}
+repetition_tester = {path = "./repetition_tester"}
 
 rand = "0.8.5"
 rand_chacha = "0.3.1"
